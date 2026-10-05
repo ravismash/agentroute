@@ -1,0 +1,21 @@
+{
+  "name": "@agentroute/gateway-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fastify gateway: proposals, policy decisions, approvals, execution",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "dev": "node --env-file-if-exists=../../.env --watch dist/server.js",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@agentroute/contracts": "workspace:*",
+    "@agentroute/telemetry": "workspace:*",
+    "fastify": "^5.12.5",
+    "zod": "^4.6.5"
+  }
+}

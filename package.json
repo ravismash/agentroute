@@ -1,0 +1,40 @@
+{
+  "name": "agentroute",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.9.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d --wait",
+    "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.4",
+    "@vitest/coverage-v8": "^5.0.3",
+    "eslint": "^10.12.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.7",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

@@ -1,0 +1,40 @@
+# Local development dependencies. Start with `pnpm infra:up`.
+# Host ports default to 5433/6380 to avoid clashing with other local Postgres/Redis;
+# override with AGENTROUTE_PG_PORT / AGENTROUTE_REDIS_PORT.
+name: agentroute
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentroute
+      POSTGRES_PASSWORD: agentroute
+      POSTGRES_DB: agentroute
+    ports:
+      - "${AGENTROUTE_PG_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentroute -d agentroute"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # AOF persistence so Redis Streams survive restarts; the Postgres outbox
+    # remains the source of truth (see docs/adr/0003, planned).
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    ports:
+      - "${AGENTROUTE_REDIS_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
+  redisdata:

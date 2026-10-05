@@ -1,0 +1,26 @@
+{
+  "name": "@agentroute/telemetry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Structured logging with PII redaction and OpenTelemetry bootstrap",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
+    "@opentelemetry/sdk-node": "^0.222.0",
+    "pino": "^10.4.0"
+  }
+}
