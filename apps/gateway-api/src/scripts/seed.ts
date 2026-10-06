@@ -6,9 +6,9 @@
  * (git-ignored, mode 600) instead of being printed; pass --rotate for new ones.
  */
 import { existsSync } from "node:fs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { Database, issueApiKey, issueOperatorToken, migrate } from "@agentroute/db";
+import { Database, issueApiKey, issueOperatorToken, migrate, randomBase62 } from "@agentroute/db";
 import { loadConfig } from "../config.js";
 import { FakePaymentGateway, StripePaymentGateway, type PaymentGateway } from "../payments.js";
 
@@ -85,11 +85,19 @@ try {
       tenant_id: TENANT,
       api_key: await issueApiKey(db, TENANT, "local dev"),
       operator_token: await issueOperatorToken(db, operatorId),
+      agent_service_token: randomBase62(40),
       payments_mode: payments.mode,
     };
     await writeFile(CREDENTIALS_FILE, `${JSON.stringify(credentials, null, 2)}\n`, { mode: 0o600 });
     console.log(`wrote credentials to ${CREDENTIALS_FILE} (git-ignored)`);
   } else {
+    // Add fields introduced after the file was first written.
+    const existing = JSON.parse(await readFile(CREDENTIALS_FILE, "utf8")) as Record<string, unknown>;
+    if (typeof existing.agent_service_token !== "string") {
+      existing.agent_service_token = randomBase62(40);
+      await writeFile(CREDENTIALS_FILE, `${JSON.stringify(existing, null, 2)}\n`, { mode: 0o600 });
+      console.log("added agent_service_token to credentials file");
+    }
     console.log(`credentials already in ${CREDENTIALS_FILE}; use --rotate to issue new ones`);
   }
   console.log("seed complete");

@@ -18,7 +18,10 @@
     "prepare": "husky",
     "db:migrate": "pnpm --filter @agentroute/db migrate",
     "db:seed": "pnpm --filter @agentroute/gateway-api seed",
-    "start": "pnpm --filter @agentroute/gateway-api start"
+    "start": "pnpm --filter @agentroute/gateway-api start",
+    "agent:start": "pnpm --filter @agentroute/supportops-agent start",
+    "evals": "pnpm --filter @agentroute/supportops-agent evals",
+    "test:python": "cd sdk-python && python3 -W error::ResourceWarning -m unittest discover -s tests"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

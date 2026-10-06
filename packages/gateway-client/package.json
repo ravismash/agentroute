@@ -1,0 +1,25 @@
+{
+  "name": "@agentroute/gateway-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed HTTP client for the AgentRoute gateway API",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentroute/contracts": "workspace:*",
+    "zod": "^4.6.5"
+  }
+}

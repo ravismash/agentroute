@@ -1,0 +1,25 @@
+{
+  "name": "@agentroute/supportops-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reference customer-support agent that acts only through the AgentRoute gateway",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start": "node --env-file-if-exists=../../.env dist/server.js",
+    "evals": "node --env-file-if-exists=../../.env dist/evals/run.js"
+  },
+  "dependencies": {
+    "@agentroute/contracts": "workspace:*",
+    "@agentroute/gateway-client": "workspace:*",
+    "@agentroute/policy-engine": "workspace:*",
+    "@agentroute/telemetry": "workspace:*",
+    "@openai/agents": "^0.18.0",
+    "fastify": "^5.12.5",
+    "openai": "^7.28.0",
+    "zod": "^4.6.5"
+  }
+}

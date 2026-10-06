@@ -31,4 +31,22 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm build
       - run: pnpm test
+      - name: Agent evals (scripted model, real policy)
+        run: pnpm --filter @agentroute/supportops-agent evals --scripted
       - run: pnpm audit --prod --audit-level high
+
+  python-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    defaults:
+      run:
+        working-directory: sdk-python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -W error::ResourceWarning -m unittest discover -s tests -v

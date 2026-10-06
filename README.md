@@ -14,7 +14,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 2 complete**: proposals API, effectively-once Stripe refunds, approvals API and dashboard. See the [roadmap](#roadmap).
+> Status: **Phase 3 complete**: SupportOps agent (OpenAI Agents SDK, OpenRouter or OpenAI), SSE streaming, 20-scenario evals, Python SDK. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -43,6 +43,9 @@ Full details are in [docs/design.md](docs/design.md): requirements, SLOs, capaci
 ```
 apps/gateway-api/       Fastify gateway: proposals, approvals, execution, Stripe (test mode), reconciliation
 apps/approval-ui/       Operator approval dashboard (static, strict CSP), served at /ui/
+apps/supportops-agent/  Reference support agent (OpenAI Agents SDK); tools are gateway proposals; SSE; evals
+packages/gateway-client/ Typed TypeScript client for the gateway (safe retries with idempotency keys)
+sdk-python/             Dependency-free Python client + example agent loop
 packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
 packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
@@ -87,6 +90,47 @@ curl -X POST localhost:8080/v1/proposals \
        "args":{"customer_id":"cus_ada","amount_minor":1500,"currency":"USD","reason_code":"duplicate_charge"}}'
 ```
 
+## SupportOps agent
+
+The agent's tools never act directly: each one submits a proposal to the gateway and tells the model what the policy decided.
+
+Add an LLM key to `.env` (`OPENROUTER_API_KEY=` with `LLM_PROVIDER=openrouter`, or `OPENAI_API_KEY=`), then:
+
+```bash
+pnpm start          # gateway on :8080 (terminal 1)
+pnpm agent:start    # agent on :8081 (terminal 2)
+TOKEN=$(node -p "require('./.dev-credentials.json').agent_service_token")
+curl -N localhost:8081/v1/runs -H "authorization: Bearer $TOKEN" -H "accept: text/event-stream" \
+  -H "content-type: application/json" \
+  -d '{"case_id":"case_1001","customer_id":"cus_ada","message":"I was charged twice, $15 each."}'
+```
+
+The stream shows `run.started` → `tool.proposed` → `decision.made` (→ `approval.pending`) → `reply.drafted` → `run.completed`. Without `accept: text/event-stream` you get one JSON summary.
+
+### Evals
+
+20 scenarios (refunds, plan changes, clarifying questions, prompt injections, robustness) run against the **real policy engine** in-process, with no database, Stripe or side effects:
+
+```bash
+pnpm evals                                   # live model (needs an LLM key)
+pnpm evals -- --scripted                     # offline, scripted model (runs in CI)
+pnpm evals -- --only injection               # one category or scenario
+```
+
+Each run reports the pass rate, **policy saves** (proposals the gateway denied or escalated) and token usage. See [ADR-0005](docs/adr/0005-supportops-agent-design.md).
+
+### Python
+
+```python
+from agentroute import AgentRoute
+decision = AgentRoute("http://localhost:8080", api_key).propose(
+    "supportops", "case_1001", "create_refund_request",
+    {"customer_id": "cus_ada", "amount_minor": 1500, "currency": "USD", "reason_code": "duplicate_charge"},
+    idempotency_key=f"{run_id}:{call_id}")
+```
+
+See [sdk-python/README.md](sdk-python/README.md).
+
 ## Quality gates
 
 | Command             | What it checks                                                     |
@@ -116,6 +160,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0002: Custom YAML policy engine instead of OPA or Cedar](docs/adr/0002-custom-policy-engine-vs-opa-cedar.md)
 - [ADR-0003: Effectively-once execution of money actions](docs/adr/0003-effectively-once-execution.md)
 - [ADR-0004: Execute the stored proposal; never re-ask the LLM after approval](docs/adr/0004-execute-the-stored-proposal.md)
+- [ADR-0005: SupportOps agent design: tools as proposals, provider-agnostic, offline evals](docs/adr/0005-supportops-agent-design.md)
 
 ## Roadmap
 
@@ -124,7 +169,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | 0     | 1–2   | ✅ Foundations: monorepo, contracts, telemetry, gateway skeleton, CI, design doc |
 | 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run         |
 | 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                  |
-| 3     | 11–13 | SupportOps agent, SSE, evals, Python SDK                                         |
+| 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                      |
 | 4     | 14–16 | Outbox relay, Redis Streams consumers, DLQ, replay                               |
 | 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                              |
 | 6     | 19–20 | Fault injection, load tests, dashboards, threat model                            |
