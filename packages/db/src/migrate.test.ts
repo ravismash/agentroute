@@ -29,9 +29,9 @@ describe("migrate", () => {
   it("applies all migrations to an empty database, then is a no-op", async () => {
     const { client } = await emptyDb();
     const first = await migrate(client);
-    expect(first.applied).toEqual(["0001"]);
+    expect(first.applied).toEqual(["0001", "0002"]);
     const second = await migrate(client);
-    expect(second).toEqual({ applied: [], alreadyApplied: ["0001"] });
+    expect(second).toEqual({ applied: [], alreadyApplied: ["0001", "0002"] });
   });
 
   it("refuses to run when an applied migration was edited", async () => {
@@ -45,7 +45,7 @@ describe("migrate", () => {
   it("refuses to run an older build against a newer schema", async () => {
     const { client } = await emptyDb();
     const dir = await copyOfMigrations();
-    await writeFile(join(dir, "0002_extra.sql"), "CREATE TABLE extra_things (id int PRIMARY KEY);");
+    await writeFile(join(dir, "0099_extra.sql"), "CREATE TABLE extra_things (id int PRIMARY KEY);");
     await migrate(client, { dir });
     await expect(migrate(client)).rejects.toThrow(/missing from this build/);
   });
@@ -53,14 +53,14 @@ describe("migrate", () => {
   it("rolls back a failing migration completely", async () => {
     const { client } = await emptyDb();
     const dir = await copyOfMigrations();
-    await writeFile(join(dir, "0002_broken.sql"), "CREATE TABLE half_done (id int); SELECT 1/0;");
-    await expect(migrate(client, { dir })).rejects.toThrow(/0002_broken failed/);
+    await writeFile(join(dir, "0099_broken.sql"), "CREATE TABLE half_done (id int); SELECT 1/0;");
+    await expect(migrate(client, { dir })).rejects.toThrow(/0099_broken failed/);
     const { rows } = await client.query<{ exists: boolean }>(
       "SELECT to_regclass('public.half_done') IS NOT NULL AS exists",
     );
     expect(rows[0]?.exists).toBe(false);
     const versions = await client.query<{ version: string }>("SELECT version FROM schema_migrations");
-    expect(versions.rows.map((r) => r.version)).toEqual(["0001"]);
+    expect(versions.rows.map((r) => r.version)).toEqual(["0001", "0002"]);
   });
 
   it("serialises concurrent migrators so each migration applies once", async () => {
@@ -69,7 +69,7 @@ describe("migrate", () => {
     await other.connect();
     cleanups.push(() => other.end());
     const results = await Promise.all([migrate(db.client), migrate(other)]);
-    expect(results.map((r) => r.applied.length).sort()).toEqual([0, 1]);
+    expect(results.map((r) => r.applied.length).sort()).toEqual([0, 2]);
   });
 
   it("rejects badly named migration files", async () => {

@@ -1,17 +1,21 @@
 import { randomUUID } from "node:crypto";
-import type { ProblemDetails } from "@agentroute/contracts";
 import type { Logger } from "@agentroute/telemetry";
 import Fastify from "fastify";
+import { ApiError, sendProblem } from "./problem.js";
+import { registerUiRoutes } from "./routes/ui.js";
+import { registerV1Routes, type V1Services } from "./routes/v1.js";
 
 export interface AppDeps {
   logger: Logger;
-  /** Readiness probes for downstream dependencies (Postgres, Redis) — added in Phase 2. */
+  /** Readiness probes for downstream dependencies (Postgres, Redis). */
   readinessChecks?: Record<string, () => Promise<void>>;
+  /** API services; omitted in tests that only exercise the HTTP shell. */
+  services?: V1Services;
 }
 
 const BODY_LIMIT_BYTES = 64 * 1024;
 
-export function buildApp({ logger, readinessChecks = {} }: AppDeps) {
+export function buildApp({ logger, readinessChecks = {}, services }: AppDeps) {
   const app = Fastify({
     loggerInstance: logger,
     bodyLimit: BODY_LIMIT_BYTES,
@@ -21,30 +25,23 @@ export function buildApp({ logger, readinessChecks = {} }: AppDeps) {
 
   app.addHook("onSend", async (request, reply) => {
     reply.header("x-request-id", request.id);
+    reply.header("x-content-type-options", "nosniff");
+    reply.header("referrer-policy", "no-referrer");
+    if (request.url.startsWith("/v1/")) reply.header("cache-control", "no-store");
   });
 
-  app.setNotFoundHandler((request, reply) => {
-    const body: ProblemDetails = {
-      type: "about:blank",
-      title: "Not Found",
-      status: 404,
-      code: "NOT_FOUND",
-      instance: request.url,
-    };
-    return reply.code(404).type("application/problem+json").send(body);
-  });
+  app.setNotFoundHandler((request, reply) => sendProblem(request, reply, 404, "NOT_FOUND"));
 
   app.setErrorHandler((error: Error & { statusCode?: number }, request, reply) => {
+    if (error instanceof ApiError)
+      return sendProblem(request, reply, error.status, error.code, error.message);
     const status = error.statusCode && error.statusCode < 500 ? error.statusCode : 500;
-    if (status >= 500) request.log.error({ err: error }, "unhandled error");
-    const body: ProblemDetails = {
-      type: "about:blank",
-      title: status >= 500 ? "Internal Server Error" : error.message,
-      status,
-      code: status >= 500 ? "INTERNAL" : "VALIDATION_FAILED",
-      instance: request.url,
-    };
-    return reply.code(status).type("application/problem+json").send(body);
+    if (status >= 500) {
+      request.log.error({ err: error }, "unhandled error");
+      return sendProblem(request, reply, 500, "INTERNAL");
+    }
+    // Framework errors: malformed JSON, body too large, wrong content type.
+    return sendProblem(request, reply, status, "VALIDATION_FAILED", error.message);
   });
 
   app.get("/healthz", () => ({ status: "ok" }));
@@ -64,6 +61,11 @@ export function buildApp({ logger, readinessChecks = {} }: AppDeps) {
     const ready = Object.values(results).every((r) => r === "ok");
     return reply.code(ready ? 200 : 503).send({ status: ready ? "ready" : "not_ready", checks: results });
   });
+
+  if (services) {
+    registerV1Routes(app, services);
+    registerUiRoutes(app);
+  }
 
   return app;
 }

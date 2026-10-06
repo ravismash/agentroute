@@ -16,7 +16,9 @@
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
     "prepare": "husky",
-    "db:migrate": "pnpm --filter @agentroute/db migrate"
+    "db:migrate": "pnpm --filter @agentroute/db migrate",
+    "db:seed": "pnpm --filter @agentroute/gateway-api seed",
+    "start": "pnpm --filter @agentroute/gateway-api start"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

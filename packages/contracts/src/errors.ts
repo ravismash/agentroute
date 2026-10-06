@@ -25,6 +25,8 @@ export const ErrorCode = z.enum([
   "NOT_FOUND",
   "VALIDATION_FAILED",
   "IDEMPOTENCY_CONFLICT",
+  "IDEMPOTENCY_KEY_REQUIRED",
+  "EXECUTION_FAILED",
   "INTERNAL",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;

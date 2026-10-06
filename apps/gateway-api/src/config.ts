@@ -1,15 +1,39 @@
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-const ConfigSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-  PORT: z.coerce.number().int().min(1).max(65535).default(8080),
-  HOST: z.string().default("0.0.0.0"),
-  OTEL_EXPORTER_OTLP_ENDPOINT: z
-    .url()
-    .optional()
-    .or(z.literal("").transform(() => undefined)),
-});
+const DEFAULT_POLICIES_DIR = fileURLToPath(new URL("../../../policies", import.meta.url));
+
+const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+
+const ConfigSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
+    PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+    HOST: z.string().default("0.0.0.0"),
+    OTEL_EXPORTER_OTLP_ENDPOINT: z.preprocess(emptyToUndefined, z.url().optional()),
+    DATABASE_URL: z.preprocess(emptyToUndefined, z.string().startsWith("postgres").optional()),
+    STRIPE_SECRET_KEY: z.preprocess(
+      emptyToUndefined,
+      z
+        .string()
+        .regex(/^(sk|rk)_test_[A-Za-z0-9]+$/, "must be a Stripe *test-mode* secret or restricted key")
+        .optional(),
+    ),
+    POLICIES_DIR: z.string().default(DEFAULT_POLICIES_DIR),
+    APPROVAL_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(7 * 86400)
+      .default(86400),
+    JOBS_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
+  })
+  .superRefine((c, ctx) => {
+    if (c.NODE_ENV === "production" && !c.STRIPE_SECRET_KEY) {
+      ctx.addIssue({ code: "custom", path: ["STRIPE_SECRET_KEY"], message: "required in production" });
+    }
+  });
 
 export type Config = z.infer<typeof ConfigSchema>;
 

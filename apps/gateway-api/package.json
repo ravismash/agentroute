@@ -10,12 +10,22 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "dev": "node --env-file-if-exists=../../.env --watch dist/server.js",
-    "start": "node dist/server.js"
+    "start": "node --env-file-if-exists=../../.env dist/server.js",
+    "seed": "node --env-file-if-exists=../../.env dist/scripts/seed.js"
   },
   "dependencies": {
+    "@agentroute/approval-ui": "workspace:*",
     "@agentroute/contracts": "workspace:*",
+    "@agentroute/db": "workspace:*",
+    "@agentroute/policy-engine": "workspace:*",
     "@agentroute/telemetry": "workspace:*",
     "fastify": "^5.12.5",
+    "stripe": "^23.0.0",
     "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.0",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1"
   }
 }

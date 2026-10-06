@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentRoute Approvals</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>AgentRoute <span>Approvals</span></h1>
+      <form id="token-form" autocomplete="off">
+        <label for="token">Operator token</label>
+        <input id="token" type="password" placeholder="ar_op_…" spellcheck="false" />
+        <button type="submit">Connect</button>
+        <button type="button" id="sign-out" hidden>Sign out</button>
+      </form>
+    </header>
+
+    <main>
+      <div class="toolbar">
+        <p id="status" role="status" aria-live="polite">Paste an operator token to load the queue.</p>
+        <button type="button" id="refresh" disabled>Refresh</button>
+      </div>
+
+      <table id="queue" hidden>
+        <thead>
+          <tr>
+            <th>Requested</th>
+            <th>Customer / case</th>
+            <th>Action</th>
+            <th class="num">Amount</th>
+            <th>Why it needs approval</th>
+            <th>Expires</th>
+            <th>Decision</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="empty" hidden>Nothing waiting for approval.</p>
+    </main>
+
+    <template id="row-template">
+      <tr>
+        <td data-field="requested"></td>
+        <td><strong data-field="customer"></strong><small data-field="case"></small></td>
+        <td><code data-field="tool"></code><small data-field="agent"></small></td>
+        <td class="num" data-field="amount"></td>
+        <td><ul data-field="reasons"></ul></td>
+        <td data-field="expires"></td>
+        <td class="actions">
+          <input type="text" maxlength="1000" placeholder="Note (optional)" aria-label="Decision note" />
+          <button type="button" data-decision="approve" class="approve">Approve</button>
+          <button type="button" data-decision="reject" class="reject">Reject</button>
+        </td>
+      </tr>
+    </template>
+
+    <script type="module" src="/ui/app.js"></script>
+  </body>
+</html>

@@ -35,9 +35,13 @@ export type PolicyRef = z.infer<typeof PolicyRef>;
 export const ProposalResponse = z.object({
   action_id: Id,
   effect: DecisionEffect,
+  /** Current lifecycle state, e.g. `succeeded` when an allowed action has already executed. */
   state: ActionState,
   reasons: z.array(DecisionReason),
-  policy: PolicyRef,
+  /** Null when no policy governs the tenant/agent (the proposal is denied by default). */
+  policy: PolicyRef.nullable(),
+  /** Output of read tools (e.g. get_customer). Not stored, so absent on idempotent replays. */
+  result: z.unknown().optional(),
 });
 export type ProposalResponse = z.infer<typeof ProposalResponse>;
 

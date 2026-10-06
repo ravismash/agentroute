@@ -62,6 +62,8 @@ erDiagram
   actions ||--o{ executions : "attempted as"
   tenants ||--o{ outbox : emits
   tenants ||--o{ audit_log : records
+  customers ||--o{ payments : made
+  operators ||--o{ operator_tokens : holds
 ```
 
 ## Usage aggregates

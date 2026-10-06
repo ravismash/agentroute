@@ -16,6 +16,10 @@ export default defineConfig(
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/restrict-template-expressions": ["error", { allowNumber: true }],
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", ignoreRestSiblings: true },
+      ],
     },
   },
   {
@@ -38,5 +42,19 @@ export default defineConfig(
   {
     files: ["**/*.mjs", "**/*.config.ts"],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    // Static approval UI: plain browser JavaScript, no build step, no type information.
+    files: ["apps/approval-ui/**/*.js", "apps/approval-ui/**/*.d.ts"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        sessionStorage: "readonly",
+        fetch: "readonly",
+        Intl: "readonly",
+        URL: "readonly",
+      },
+    },
   },
 );

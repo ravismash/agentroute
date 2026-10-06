@@ -14,7 +14,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 1: policy engine complete** (thresholds, context binding, aggregate limits, fail-closed, dry-run). See the [roadmap](#roadmap).
+> Status: **Phase 2 complete**: proposals API, effectively-once Stripe refunds, approvals API and dashboard. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -41,7 +41,8 @@ Full details are in [docs/design.md](docs/design.md): requirements, SLOs, capaci
 ## Repository layout
 
 ```
-apps/gateway-api/       Fastify gateway (health/readiness, RFC 7807 errors)
+apps/gateway-api/       Fastify gateway: proposals, approvals, execution, Stripe (test mode), reconciliation
+apps/approval-ui/       Operator approval dashboard (static, strict CSP), served at /ui/
 packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
 packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
@@ -60,16 +61,30 @@ Requirements: Node 22+, Docker. pnpm is provided through Corepack.
 corepack enable
 pnpm install
 pnpm infra:up        # Postgres on :5433, Redis on :6380
+cp .env.example .env # add a Stripe *test-mode* key (optional: without one, refunds use an in-memory fake)
 pnpm build
-pnpm test
+pnpm db:seed         # migrates, creates demo data + Stripe test payments, writes .dev-credentials.json
+pnpm start           # gateway on :8080, approval dashboard at http://localhost:8080/ui/
 ```
 
-Run the gateway:
+`.dev-credentials.json` (git-ignored) holds a tenant API key for agents and an operator token for the dashboard.
+
+## API
+
+| Endpoint                                     | Who                    | What                                                                                                                    |
+| -------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `POST /v1/proposals`                         | Agent (tenant API key) | Submit a tool proposal. Requires an `Idempotency-Key` header. Returns the decision; allowed actions execute immediately |
+| `GET /v1/actions/:id`                        | Agent                  | Current state, decision reasons and latest execution                                                                    |
+| `GET /v1/approvals`                          | Operator token         | Pending approvals, oldest first, cursor-paginated                                                                       |
+| `POST /v1/approvals/:id/approve` · `/reject` | Operator token         | Decide atomically (409 if already decided or expired); approval executes the stored proposal                            |
+
+Errors use RFC 7807 problem details with a stable `code`.
 
 ```bash
-cp .env.example .env
-pnpm --filter @agentroute/gateway-api start
-curl localhost:8080/healthz
+curl -X POST localhost:8080/v1/proposals \
+  -H "authorization: Bearer $API_KEY" -H "idempotency-key: $(uuidgen)" -H "content-type: application/json" \
+  -d '{"agent_id":"supportops","case_id":"case_1001","tool":"create_refund_request",
+       "args":{"customer_id":"cus_ada","amount_minor":1500,"currency":"USD","reason_code":"duplicate_charge"}}'
 ```
 
 ## Quality gates
@@ -99,6 +114,8 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 
 - [ADR-0001: TypeScript monorepo and core stack](docs/adr/0001-monorepo-and-stack.md)
 - [ADR-0002: Custom YAML policy engine instead of OPA or Cedar](docs/adr/0002-custom-policy-engine-vs-opa-cedar.md)
+- [ADR-0003: Effectively-once execution of money actions](docs/adr/0003-effectively-once-execution.md)
+- [ADR-0004: Execute the stored proposal; never re-ask the LLM after approval](docs/adr/0004-execute-the-stored-proposal.md)
 
 ## Roadmap
 
@@ -106,7 +123,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | ----- | ----- | -------------------------------------------------------------------------------- |
 | 0     | 1–2   | ✅ Foundations: monorepo, contracts, telemetry, gateway skeleton, CI, design doc |
 | 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run         |
-| 2     | 7–10  | Action store, state machine, idempotent execution, approvals                     |
+| 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                  |
 | 3     | 11–13 | SupportOps agent, SSE, evals, Python SDK                                         |
 | 4     | 14–16 | Outbox relay, Redis Streams consumers, DLQ, replay                               |
 | 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                              |

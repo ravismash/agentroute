@@ -112,6 +112,7 @@ describe("schema conventions", () => {
       "processed_events",
       "dead_letters",
       "schema_migrations",
+      "operator_tokens",
     ];
     const { rows } = await client.query<{ table_name: string }>(
       `SELECT t.table_name FROM information_schema.tables t
