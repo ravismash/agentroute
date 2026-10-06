@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Gateway } from "@agentroute/gateway-client";
+import type { Retriever } from "@agentroute/knowledge";
 import { MaxTurnsExceededError, run, type Model } from "@openai/agents";
 import { AGENT_ID, buildInput, createSupportAgent } from "./agent.js";
 import type { EmitFn, RunSummary } from "./events.js";
@@ -16,6 +17,8 @@ export interface RunnerOptions {
   /** A fresh model per run (scripted models are stateful). */
   modelFactory: () => Model;
   maxTurns: number;
+  /** Help-center retriever; omit to run without the search tool. */
+  knowledge?: Retriever;
 }
 
 const FALLBACK_REPLY =
@@ -40,6 +43,8 @@ export async function runSupportCase(
     gateway: options.gateway,
     emit,
     actions: [],
+    knowledge: options.knowledge,
+    sources: new Set(),
   };
   emit({ type: "run.started", run_id: runId, case_id: request.caseId });
 
@@ -77,6 +82,7 @@ export async function runSupportCase(
       reply,
       reply_effect: replyAction?.effect ?? null,
       actions: ctx.actions,
+      sources: [...ctx.sources],
       usage,
     };
     emit({ type: "run.completed", run_id: runId, summary });

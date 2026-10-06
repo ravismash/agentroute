@@ -20,6 +20,7 @@ export type RunEvent =
   | { type: "approval.pending"; action_id: string; tool: string }
   | { type: "action.completed"; action_id: string; tool: string; state: ActionState }
   | { type: "tool.error"; call_id: string; tool: string; message: string }
+  | { type: "knowledge.retrieved"; call_id: string; query: string; articles: string[] }
   | { type: "reply.drafted"; text: string; action_id: string | null; effect: DecisionEffect | null }
   | { type: "run.completed"; run_id: string; summary: RunSummary }
   | { type: "run.failed"; run_id: string; error: string };
@@ -37,6 +38,8 @@ export interface RunSummary {
   reply: string;
   reply_effect: DecisionEffect | null;
   actions: ProposedAction[];
+  /** Help-center articles retrieved during the run (citations must come from here). */
+  sources: string[];
   usage: { requests: number; input_tokens: number; output_tokens: number };
 }
 

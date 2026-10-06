@@ -9,6 +9,7 @@ import {
 import {
   findByIdempotencyKey,
   insertProposal,
+  loadCaseEvidence,
   isUniqueViolation,
   loadCaseContext,
   lockUsageScope,
@@ -71,6 +72,13 @@ export class ProposalService {
 
         const policy = this.policies.registry.resolve(tenantId, request.agent_id);
         const evalContext = toEvaluationContext(tenantId, request.agent_id, context);
+        if (request.tool === "draft_reply") {
+          // Replies are checked against what actually happened on the case.
+          evalContext.evidence = {
+            actions: await loadCaseEvidence(tx, tenantId, context.case.customer_id, request.case_id),
+            current_plan: context.subscription?.plan ?? null,
+          };
+        }
         const proposal = { tool: request.tool, args: request.args };
 
         let decision: Decision | NoPolicyDecision;

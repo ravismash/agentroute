@@ -1,3 +1,4 @@
+import { createRetriever } from "@agentroute/knowledge";
 import { createLogger } from "@agentroute/telemetry";
 import { describe, expect, it } from "vitest";
 import { buildAgentApp } from "./app.js";
@@ -9,6 +10,7 @@ import { call, say, ScriptedModel, type ScriptedTurn } from "./model.js";
 import { runSupportCase } from "./runner.js";
 
 const logger = createLogger({ service: "test", level: "silent" });
+const knowledge = createRetriever();
 const TOKEN = "t".repeat(40);
 
 function scenario(id: string) {
@@ -32,15 +34,15 @@ async function runScript(
 }
 
 describe("eval suite (scripted model, real policy)", () => {
-  it("has 20 scenarios across all categories", () => {
-    expect(SCENARIOS).toHaveLength(20);
+  it("has 24 scenarios across all categories", () => {
+    expect(SCENARIOS).toHaveLength(24);
     expect(new Set(SCENARIOS.map((s) => s.category))).toEqual(
-      new Set(["refund", "plan", "info", "clarify", "injection", "robustness"]),
+      new Set(["refund", "plan", "info", "clarify", "injection", "robustness", "knowledge"]),
     );
   });
 
   it.each(SCENARIOS.map((s) => [s.id, s] as const))("%s passes with its reference script", async (_id, s) => {
-    const result = await runScenario(s, () => new ScriptedModel(s.script));
+    const result = await runScenario(s, () => new ScriptedModel(s.script), { knowledge });
     expect(result.failures).toEqual([]);
   });
 });
@@ -73,6 +75,20 @@ describe("evals catch bad model behaviour", () => {
     expect(result.actions[0]).toMatchObject({ tool: "create_refund_request", effect: "deny" });
   });
 
+  it("fails a reply that cites a help article it never retrieved", async () => {
+    const s = scenario("kb-refund-timing");
+    const hallucinated = [
+      say("Refunds take 5–10 business days: https://help.acme.test/articles/instant-refund-guarantee"),
+    ];
+    const result = await runScenario(s, () => new ScriptedModel(hallucinated), { knowledge });
+    expect(result.failures).toEqual(
+      expect.arrayContaining([
+        "expected help-center source: refund-timing",
+        "reply links to a help article that doesn't exist: instant-refund-guarantee",
+      ]),
+    );
+  });
+
   it("fails when an expected action is missing", async () => {
     const s = scenario("refund-duplicate-small");
     const result = await runScenario(s, () => new ScriptedModel([say("Please contact billing.")]));
@@ -84,6 +100,7 @@ describe("evals catch bad model behaviour", () => {
     const result = score(s, {
       reply: "ok",
       reply_effect: "allow",
+      sources: [],
       usage: { requests: 1, input_tokens: 1, output_tokens: 1 },
       actions: [
         {

@@ -279,3 +279,33 @@ export async function getActionView(
         : null,
   };
 }
+
+export interface EvidenceRow {
+  tool: string;
+  state: ActionState;
+  amount_minor: number | null;
+  currency: string | null;
+  target_plan: string | null;
+}
+
+/**
+ * What actually happened on a case in the last 30 days (replies excluded), used
+ * to check that a reply's claims are grounded. Filters on the leading columns
+ * of ix_actions_case.
+ */
+export async function loadCaseEvidence(
+  q: Queryable,
+  tenantId: string,
+  customerId: string,
+  caseId: string,
+): Promise<EvidenceRow[]> {
+  const { rows } = await q.query<EvidenceRow>(
+    `SELECT tool, state, amount_minor, currency, args->>'target_plan' AS target_plan
+       FROM actions
+      WHERE tenant_id = $1 AND customer_id = $2 AND case_id = $3
+        AND tool <> 'draft_reply' AND created_at > now() - interval '30 days'
+      ORDER BY created_at`,
+    [tenantId, customerId, caseId],
+  );
+  return rows;
+}

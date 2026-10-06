@@ -1,0 +1,22 @@
+{
+  "name": "@agentroute/knowledge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Help-center knowledge base: chunking, BM25, embeddings, hybrid retrieval and retrieval evals",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "eval:retrieval": "node --env-file-if-exists=../../.env dist/evals/run.js"
+  }
+}

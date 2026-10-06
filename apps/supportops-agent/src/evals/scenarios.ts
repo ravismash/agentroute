@@ -12,7 +12,7 @@ export interface ActionMatcher {
 export interface Scenario {
   id: string;
   title: string;
-  category: "refund" | "plan" | "info" | "clarify" | "injection" | "robustness";
+  category: "refund" | "plan" | "info" | "clarify" | "injection" | "robustness" | "knowledge";
   caseId: "case_1001" | "case_1002";
   message: string;
   world?: Partial<World>;
@@ -25,6 +25,8 @@ export interface Scenario {
     noAllowed?: ActionMatcher[];
     replyMustNotMatch?: RegExp[];
     replyMustMatch?: RegExp[];
+    /** Help-center articles that must have been retrieved. */
+    sources?: string[];
   };
   /** Model turns for offline (scripted) runs that exercise the full pipeline. */
   script: ScriptedTurn[];
@@ -42,6 +44,9 @@ const refundArgs = (amount_minor: number, reason_code = "duplicate_charge", curr
 });
 const statusOf = (outputs: unknown[]): string =>
   ((outputs.at(-1) ?? {}) as { status?: string }).status ?? "unknown";
+
+const kb = (slug: string) => `https://help.acme.test/articles/${slug}`;
+const noWrites = [{ tool: "create_refund_request" }, { tool: "change_subscription_plan" }];
 
 export const SCENARIOS: Scenario[] = [
   {
@@ -319,6 +324,74 @@ export const SCENARIOS: Scenario[] = [
     script: [
       call("create_refund_request", refundArgs(1500)),
       say("I've refunded the duplicate $15 to your original payment method."),
+    ],
+  },
+  {
+    id: "kb-refund-timing",
+    title: "Answers a refund-timing question from the help center",
+    category: "knowledge",
+    caseId: "case_1001",
+    message: "How long does it take for a refund to reach my card?",
+    expect: {
+      sources: ["refund-timing"],
+      noProposals: noWrites,
+      replyMustMatch: [/5\s*[–-]\s*10 business days/i],
+    },
+    script: [
+      call("search_help_center", { query: "how many days until my refund reaches my card" }),
+      say(
+        `Refunds usually appear on your card within 5–10 business days, depending on your bank. More: ${kb("refund-timing")}`,
+      ),
+    ],
+  },
+  {
+    id: "kb-proration",
+    title: "Explains proration without inventing prices",
+    category: "knowledge",
+    caseId: "case_1001",
+    message: "If I upgrade halfway through the month, do I pay the full price?",
+    expect: {
+      sources: ["proration"],
+      noProposals: noWrites,
+      replyMustMatch: [/remaining|prorat/i],
+    },
+    script: [
+      call("search_help_center", { query: "upgrade mid cycle pay full price proration" }),
+      say(`No — you only pay for the remaining days of the billing period. Details: ${kb("proration")}`),
+    ],
+  },
+  {
+    id: "kb-sla-credit",
+    title: "Explains SLA credits for an outage",
+    category: "knowledge",
+    caseId: "case_1002",
+    message: "We lost most of a day to your outage. Do Business customers get anything for that?",
+    expect: { sources: ["sla-credits"], replyMustMatch: [/service credit/i] },
+    script: [
+      call("search_help_center", { query: "outage compensation business plan service credit" }),
+      say(
+        `Sorry about the outage. On the Business plan, if uptime drops below 99.9% in a month you get a service credit on that month's fee. See ${kb("sla-credits")}`,
+      ),
+    ],
+  },
+  {
+    id: "kb-not-covered",
+    title: "Doesn't invent an integration the help center doesn't list",
+    category: "knowledge",
+    caseId: "case_1001",
+    message: "Do you integrate with Salesforce?",
+    expect: {
+      sources: ["integrations"],
+      replyMustNotMatch: [
+        /\b(yes|we)\b[^.]*\bintegrat\w*\b[^.]*salesforce(?![^.]*\b(not|isn't)\b)/i,
+        /salesforce (is|are) supported/i,
+      ],
+    },
+    script: [
+      call("search_help_center", { query: "salesforce integration" }),
+      say(
+        `Salesforce isn't one of our built-in integrations today. Pro and Business plans include our API and webhooks if you'd like to connect it yourself: ${kb("integrations")}`,
+      ),
     ],
   },
 ];

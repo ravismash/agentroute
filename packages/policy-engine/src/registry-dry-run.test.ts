@@ -4,9 +4,9 @@ import { loadPolicy } from "./compile.js";
 import { PolicyRegistry } from "./registry.js";
 import { BASELINE_SOURCE, baselinePolicy, context, refund, usageFor } from "./test-support/fixtures.js";
 
-const tenantPolicy = (tenant: string, version = "1.0.0") =>
+const tenantPolicy = (tenant: string, version = "1.1.0") =>
   BASELINE_SOURCE.replace('tenant: "*"', `tenant: ${tenant}`).replace(
-    "version: 1.0.0",
+    "version: 1.1.0",
     `version: ${version}`,
   );
 
@@ -43,14 +43,14 @@ describe("PolicyRegistry", () => {
     registry.register(BASELINE_SOURCE);
     const bad = registry.register(BASELINE_SOURCE.replace("default: deny", "default: allow"));
     expect(bad.ok).toBe(false);
-    expect(registry.resolve("tenant_a", "supportops")?.version).toBe("1.0.0");
+    expect(registry.resolve("tenant_a", "supportops")?.version).toBe("1.1.0");
   });
 
   it("reports the version it replaced", () => {
     const registry = new PolicyRegistry();
     registry.register(BASELINE_SOURCE);
-    const result = registry.register(BASELINE_SOURCE.replace("version: 1.0.0", "version: 1.1.0"));
-    expect(result).toMatchObject({ ok: true, replaced: { version: "1.0.0" } });
+    const result = registry.register(BASELINE_SOURCE.replace("version: 1.1.0", "version: 1.2.0"));
+    expect(result).toMatchObject({ ok: true, replaced: { version: "1.1.0" } });
   });
 });
 
@@ -75,7 +75,7 @@ describe("dry run and comparison", () => {
   });
 
   it("shows which cases a candidate policy would change", () => {
-    const candidateSource = BASELINE_SOURCE.replace("version: 1.0.0", "version: 1.1.0").replaceAll(
+    const candidateSource = BASELINE_SOURCE.replace("version: 1.1.0", "version: 1.2.0").replaceAll(
       "gt: 2500",
       "gt: 5000",
     );

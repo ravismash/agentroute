@@ -247,6 +247,9 @@ importers:
       '@agentroute/gateway-client':
         specifier: workspace:*
         version: link:../../packages/gateway-client
+      '@agentroute/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
       '@agentroute/policy-engine':
         specifier: workspace:*
         version: link:../../packages/policy-engine
@@ -296,6 +299,8 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/knowledge: {}
 
   packages/policy-engine:
     dependencies:

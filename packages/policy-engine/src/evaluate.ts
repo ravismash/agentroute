@@ -5,6 +5,7 @@ import {
   type PolicyRef,
 } from "@agentroute/contracts";
 import type { CompiledPolicy, CompiledToolPolicy } from "./compile.js";
+import { checkGrounding, type GroundingEvidence } from "./grounding.js";
 import type { AggregateMetric, AggregateScope, Escalation, Requirement } from "./schema.js";
 
 /** Server-side facts about the case. Never populated from LLM output. */
@@ -14,6 +15,8 @@ export interface EvaluationContext {
   case: { id: string; customer_id: string } & Record<string, unknown>;
   customer?: Record<string, unknown>;
   subscription?: Record<string, unknown>;
+  /** What actually happened on the case; required by grounded_reply rules. */
+  evidence?: GroundingEvidence;
 }
 
 export interface ToolProposal {
@@ -208,6 +211,21 @@ function checkEscalation(
       return value > rule.gt
         ? { code: "POLICY_THRESHOLD_EXCEEDED", message: `${rule.arg} ${value} exceeds ${rule.gt}` }
         : undefined;
+    }
+    case "grounded_reply": {
+      const value = args[rule.arg];
+      if (typeof value !== "string") throw new Error(`grounded_reply argument "${rule.arg}" is not text`);
+      if (!ctx.evidence) throw new Error("grounded_reply requires case evidence in the context");
+      const result = checkGrounding(value, ctx.evidence);
+      if (result.grounded) return undefined;
+      const detail = result.findings
+        .slice(0, 3)
+        .map((f) => f.problem)
+        .join("; ");
+      return {
+        code: "POLICY_REPLY_NOT_GROUNDED",
+        message: `reply is not backed by the case's actions: ${detail}`,
+      };
     }
     case "aggregate": {
       const query = usageQuery(rule, ctx);

@@ -210,7 +210,7 @@ describe("audit fields", () => {
     const d = decideRefund(29900);
     expect(d.policy).toEqual({
       id: "support-agent-baseline",
-      version: "1.0.0",
+      version: "1.1.0",
       checksum: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
     });
     // A single $299 refund also pushes the case total over $25, so both rules are reported.

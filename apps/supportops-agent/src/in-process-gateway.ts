@@ -90,6 +90,24 @@ export class InProcessGateway implements Gateway {
       case: { id: request.case_id, customer_id: caseInfo.customer_id },
       customer: { id: customer.id, display_name: customer.display_name },
       subscription: { ...customer.subscription },
+      ...(request.tool === "draft_reply"
+        ? {
+            evidence: {
+              actions: this.log
+                .filter((r) => r.request.case_id === request.case_id && r.request.tool !== "draft_reply")
+                .map((r) => ({
+                  tool: r.request.tool,
+                  state: r.response.state,
+                  amount_minor:
+                    typeof r.request.args.amount_minor === "number" ? r.request.args.amount_minor : null,
+                  currency: typeof r.request.args.currency === "string" ? r.request.args.currency : null,
+                  target_plan:
+                    typeof r.request.args.target_plan === "string" ? r.request.args.target_plan : null,
+                })),
+              current_plan: customer.subscription.plan,
+            },
+          }
+        : {}),
     };
     const proposal = { tool: request.tool, args: request.args };
     const usage = Object.fromEntries(

@@ -21,7 +21,9 @@
     "start": "pnpm --filter @agentroute/gateway-api start",
     "agent:start": "pnpm --filter @agentroute/supportops-agent start",
     "evals": "pnpm --filter @agentroute/supportops-agent evals",
-    "test:python": "cd sdk-python && python3 -W error::ResourceWarning -m unittest discover -s tests"
+    "test:python": "cd sdk-python && python3 -W error::ResourceWarning -m unittest discover -s tests",
+    "eval:retrieval": "pnpm --filter @agentroute/knowledge eval:retrieval",
+    "evals:judge-calibrate": "pnpm --filter @agentroute/supportops-agent evals:judge-calibrate"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

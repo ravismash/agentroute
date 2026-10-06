@@ -88,6 +88,15 @@ If the context field is missing, the rule fails.
 
 The gateway reads the required usage (`planUsage()`) inside the decision transaction, so two concurrent proposals cannot both slip under a limit.
 
+**`grounded_reply`**: triggers when a reply makes claims that the case's actions don't back up: a refund described as done that isn't `succeeded`, an amount under review that was never requested, or a plan change that didn't happen. The gateway supplies the evidence (the case's actions in the last 30 days and the current plan). Questions, negations and general policy statements are ignored.
+
+```yaml
+- id: reply-grounded
+  type: grounded_reply
+  arg: body # must be a text argument
+  effect: approval_required # route to a human rather than send
+```
+
 ## Testing a policy change
 
 - `loadPolicy(yaml)` validates a policy without activating it.

@@ -41,7 +41,7 @@ describe("auto-allowed refund", () => {
     const res = await h.propose(refund(1500));
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ effect: "allow", state: "succeeded" });
-    expect(res.body.policy).toEqual({ id: "support-agent-baseline", version: "1.0.0" });
+    expect(res.body.policy).toEqual({ id: "support-agent-baseline", version: "1.1.0" });
 
     expect(h.payments.createRefundCalls).toBe(1);
     const [stripeRefund] = [...h.payments.refunds.entries()];
@@ -231,6 +231,40 @@ describe("denials", () => {
   it("returns 404 for a case that does not exist (or belongs to another tenant)", async () => {
     expect((await h.propose(refund(100, { case_id: "case_404" }))).status).toBe(404);
     expect((await h.propose(refund(100, { case_id: "case_9" }))).status).toBe(404);
+  });
+});
+
+// ─── Reply grounding ─────────────────────────────────────────────────────────
+
+describe("reply grounding", () => {
+  const reply = (body: string) =>
+    h.propose({
+      agent_id: "supportops",
+      case_id: "case_1",
+      tool: "draft_reply",
+      args: { case_id: "case_1", body },
+    });
+
+  it("allows a reply whose claims match what happened on the case", async () => {
+    await h.propose(refund(1500));
+    const res = await reply("I've refunded the duplicate $15 charge.");
+    expect(res.body).toMatchObject({ effect: "allow", state: "succeeded" });
+  });
+
+  it("holds a reply that claims a pending refund is done for human review", async () => {
+    await h.propose(refund(29900));
+    const res = await reply("Good news: your $299 has been refunded!");
+    expect(res.body).toMatchObject({ effect: "approval_required" });
+    expect(res.body.reasons[0]).toMatchObject({
+      code: "POLICY_REPLY_NOT_GROUNDED",
+      rule_id: "draft_reply/reply-grounded",
+    });
+  });
+
+  it("does not count another case's refunds as evidence", async () => {
+    await h.propose(refund(1500, { case_id: "case_2", customer_id: "cus_grace" }));
+    const res = await reply("I've refunded $15.");
+    expect(res.body.effect).toBe("approval_required");
   });
 });
 

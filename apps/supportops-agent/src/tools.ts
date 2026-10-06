@@ -1,5 +1,6 @@
 import { RefundReasonCode, type ProposalResponse } from "@agentroute/contracts";
 import { GatewayError, type Gateway } from "@agentroute/gateway-client";
+import { searchArticles, type Retriever } from "@agentroute/knowledge";
 import { tool } from "@openai/agents";
 import { z } from "zod";
 import type { EmitFn, ProposedAction } from "./events.js";
@@ -13,6 +14,10 @@ export interface ToolRunContext {
   emit: EmitFn;
   /** Every proposal made during the run, for the summary and evals. */
   actions: ProposedAction[];
+  /** Help-center search; undefined disables the tool. */
+  knowledge?: Retriever | undefined;
+  /** Article slugs retrieved during the run. */
+  sources: Set<string>;
 }
 
 /** What the model sees after proposing an action. Short, explicit, and actionable. */
@@ -128,7 +133,46 @@ export function createSupportTools(ctx: ToolRunContext) {
       return JSON.stringify(await proposeAction(ctx, callId, name, toArgs(input as Record<string, unknown>)));
     };
 
+  const knowledge = ctx.knowledge;
+  const searchTool = knowledge
+    ? [
+        tool({
+          name: "search_help_center",
+          description:
+            "Search the help center for policies, timelines, pricing and how-to answers. " +
+            "Answer policy questions only from the returned snippets, and link the article you used.",
+          parameters: z.object({
+            query: z.string().min(2).max(200).describe("What to look up, in plain words"),
+          }),
+          // Public help content: read locally. Customer data and actions still go through the gateway.
+          execute: async (input, _runContext, details) => {
+            const results = await searchArticles(knowledge, input.query, 3);
+            for (const r of results) ctx.sources.add(r.slug);
+            ctx.emit({
+              type: "knowledge.retrieved",
+              call_id: details?.toolCall?.callId ?? "local",
+              query: input.query,
+              articles: results.map((r) => r.slug),
+            });
+            return JSON.stringify(
+              results.length
+                ? {
+                    status: "completed",
+                    articles: results.map(({ title, url, snippet }) => ({ title, url, snippet })),
+                  }
+                : {
+                    status: "completed",
+                    articles: [],
+                    message: "Nothing found. Say you'll check with the team; don't guess.",
+                  },
+            );
+          },
+        }),
+      ]
+    : [];
+
   return [
+    ...searchTool,
     tool({
       name: "get_customer",
       description: "Look up the customer's profile. Use before acting if you need their name or details.",

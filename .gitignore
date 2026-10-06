@@ -9,3 +9,4 @@ coverage/
 .DS_Store
 .dev-credentials.json
 apps/supportops-agent/evals/results/
+.cache/

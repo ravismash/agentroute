@@ -14,7 +14,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 3 complete**: SupportOps agent (OpenAI Agents SDK, OpenRouter or OpenAI), SSE streaming, 20-scenario evals, Python SDK. See the [roadmap](#roadmap).
+> Status: **Phase 3.5 complete**: reply grounding, help-center RAG with retrieval evals, LLM-as-judge and model comparison. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -48,6 +48,7 @@ packages/gateway-client/ Typed TypeScript client for the gateway (safe retries w
 sdk-python/             Dependency-free Python client + example agent loop
 packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
 packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
+packages/knowledge/     Help-center RAG: chunking, BM25 + embeddings, hybrid (RRF), retrieval evals
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
 policies/               Versioned policy files (support-agent-baseline.v1.yaml)
@@ -109,7 +110,7 @@ The stream shows `run.started` → `tool.proposed` → `decision.made` (→ `app
 
 ### Evals
 
-20 scenarios (refunds, plan changes, clarifying questions, prompt injections, robustness) run against the **real policy engine** in-process, with no database, Stripe or side effects:
+24 scenarios (refunds, plan changes, clarifying questions, prompt injections, robustness, help-center questions) run against the **real policy engine** in-process, with no database, Stripe or side effects:
 
 ```bash
 pnpm evals                                   # live model (needs an LLM key)
@@ -130,6 +131,27 @@ decision = AgentRoute("http://localhost:8080", api_key).propose(
 ```
 
 See [sdk-python/README.md](sdk-python/README.md).
+
+## AI engineering: how the hard problems are handled
+
+| Problem                              | How AgentRoute handles it                                                                                                                                                                   | Evidence                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Hallucinations**                   | Tools return structured outcomes; a deterministic `grounded_reply` policy checks money and plan claims in every reply against what actually happened, and sends unbacked replies to a human | 24 grounding tests; a live "$500 refunded" lie is held for review                    |
+| **Retrieving the right information** | Help-center RAG: section chunks, BM25 + synonyms, embeddings, hybrid via RRF; replies may only cite retrieved articles                                                                      | recall@5 0.97 dev / **0.75 held-out** (BM25), with hybrid measured when a key is set |
+| **Evaluating responses**             | 24 scenarios against the real policy (CI, offline); LLM-as-judge calibrated against hand labels (Cohen's κ); citation checks                                                                | `pnpm evals`, `pnpm evals:judge-calibrate`                                           |
+| **Wrong answers**                    | Wrong _actions_ are contained by policy, approvals and the kill switch; wrong _claims_ by grounding; every failure becomes a new eval                                                       | "policy saves" counted in every eval run                                             |
+| **Cost**                             | Turn limits, token accounting per run, model comparison with live prices (budgets and routing in Phase 5)                                                                                   | `pnpm evals -- --models a,b,c`                                                       |
+| **Data security**                    | PII redaction, tenant isolation in the schema, hashed credentials, SDK trace export off, untrusted input delimited                                                                          | schema catalog tests, redaction tests                                                |
+| **Scale and monitoring**             | Stateless gateway, effectively-once execution, outbox; queues, load tests and alerting in Phases 4–6                                                                                        | design doc §11–14                                                                    |
+
+See [ADR-0006](docs/adr/0006-grounding-retrieval-and-judged-evals.md).
+
+```bash
+pnpm eval:retrieval                    # recall@k / MRR: BM25, plus vector and hybrid with a key
+pnpm evals -- --judge                  # agent evals + LLM-as-judge (needs OPENROUTER_API_KEY)
+pnpm evals:judge-calibrate             # judge vs hand labels: agreement and Cohen's kappa
+pnpm evals -- --models openai/gpt-5.6-luna,anthropic/claude-sonnet-5 --judge
+```
 
 ## Quality gates
 
@@ -161,6 +183,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0003: Effectively-once execution of money actions](docs/adr/0003-effectively-once-execution.md)
 - [ADR-0004: Execute the stored proposal; never re-ask the LLM after approval](docs/adr/0004-execute-the-stored-proposal.md)
 - [ADR-0005: SupportOps agent design: tools as proposals, provider-agnostic, offline evals](docs/adr/0005-supportops-agent-design.md)
+- [ADR-0006: Reply grounding, help-center retrieval and judged evals](docs/adr/0006-grounding-retrieval-and-judged-evals.md)
 
 ## Roadmap
 
@@ -170,6 +193,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run         |
 | 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                  |
 | 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                      |
+| 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison   |
 | 4     | 14–16 | Outbox relay, Redis Streams consumers, DLQ, replay                               |
 | 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                              |
 | 6     | 19–20 | Fault injection, load tests, dashboards, threat model                            |

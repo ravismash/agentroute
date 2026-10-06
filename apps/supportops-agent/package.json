@@ -10,11 +10,13 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "start": "node --env-file-if-exists=../../.env dist/server.js",
-    "evals": "node --env-file-if-exists=../../.env dist/evals/run.js"
+    "evals": "node --env-file-if-exists=../../.env dist/evals/run.js",
+    "evals:judge-calibrate": "node --env-file-if-exists=../../.env dist/evals/calibrate.js"
   },
   "dependencies": {
     "@agentroute/contracts": "workspace:*",
     "@agentroute/gateway-client": "workspace:*",
+    "@agentroute/knowledge": "workspace:*",
     "@agentroute/policy-engine": "workspace:*",
     "@agentroute/telemetry": "workspace:*",
     "@openai/agents": "^0.18.0",

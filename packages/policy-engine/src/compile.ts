@@ -71,6 +71,13 @@ export function compilePolicy(raw: unknown, source = JSON.stringify(raw)): Polic
       if (rule.type === "threshold" && Object.hasOwn(shape, rule.arg) && !isNumberSchema(shape[rule.arg])) {
         errors.push(`${at}.${rule.id}: threshold argument "${rule.arg}" is not numeric`);
       }
+      if (
+        rule.type === "grounded_reply" &&
+        Object.hasOwn(shape, rule.arg) &&
+        !isStringSchema(shape[rule.arg])
+      ) {
+        errors.push(`${at}.${rule.id}: grounded_reply argument "${rule.arg}" is not text`);
+      }
     }
     tools.set(tool, {
       tool,
@@ -100,6 +107,12 @@ function isNumberSchema(schema: z.ZodType | undefined): boolean {
   let current: unknown = schema;
   while (current instanceof z.ZodOptional) current = current.unwrap();
   return current instanceof z.ZodNumber;
+}
+
+function isStringSchema(schema: z.ZodType | undefined): boolean {
+  let current: unknown = schema;
+  while (current instanceof z.ZodOptional) current = current.unwrap();
+  return current instanceof z.ZodString;
 }
 
 function formatPath(path: readonly PropertyKey[]): string {

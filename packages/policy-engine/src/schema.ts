@@ -77,7 +77,20 @@ export const AggregateEscalation = z.strictObject({
   description,
 });
 
-export const Escalation = z.discriminatedUnion("type", [ThresholdEscalation, AggregateEscalation]);
+/** Escalates when a reply makes claims that the case's actions don't back up (see grounding.ts). */
+export const GroundedReplyEscalation = z.strictObject({
+  id: RuleId,
+  type: z.literal("grounded_reply"),
+  arg: ArgName,
+  effect: EscalationEffect,
+  description,
+});
+
+export const Escalation = z.discriminatedUnion("type", [
+  ThresholdEscalation,
+  AggregateEscalation,
+  GroundedReplyEscalation,
+]);
 export type Escalation = z.infer<typeof Escalation>;
 
 export const ToolPolicy = z.strictObject({
