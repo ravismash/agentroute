@@ -58,6 +58,8 @@ Pagination: cursor-based. Rate-limit headers: `RateLimit-Limit/Remaining`, `Retr
 
 ## 6. Data model (Postgres)
 
+> The implemented schema, its integrity rules and conventions are documented in [database.md](database.md). The table below is the summary.
+
 | Table                                   | Key columns                                                                                      | Indexes / constraints                                                    |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `tenants`                               | id, name, status, daily_budget_minor                                                             |                                                                          |

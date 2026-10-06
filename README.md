@@ -43,6 +43,7 @@ Full details are in [docs/design.md](docs/design.md): requirements, SLOs, capaci
 ```
 apps/gateway-api/       Fastify gateway (health/readiness, RFC 7807 errors)
 packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
+packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
 policies/               Versioned policy files (support-agent-baseline.v1.yaml)
@@ -81,6 +82,14 @@ curl localhost:8080/healthz
 | `pnpm format:check` | Prettier                                                           |
 
 A Husky pre-commit hook runs ESLint and Prettier on staged files. CI runs all of the above plus `pnpm audit`.
+
+## Database
+
+The schema enforces tenant isolation, legal state transitions, immutable decisions and at-most-once execution itself. See [docs/database.md](docs/database.md).
+
+```bash
+pnpm db:migrate      # uses DATABASE_URL from .env
+```
 
 ## Policies
 

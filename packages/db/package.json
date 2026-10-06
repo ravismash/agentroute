@@ -1,0 +1,31 @@
+{
+  "name": "@agentroute/db",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Postgres schema, migrations and data access",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "migrate": "node --env-file-if-exists=../../.env dist/cli.js migrate"
+  },
+  "dependencies": {
+    "@agentroute/contracts": "workspace:*",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.0",
+    "@types/pg": "^8.23.1"
+  }
+}

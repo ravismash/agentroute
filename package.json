@@ -15,7 +15,8 @@
     "format:check": "prettier --check .",
     "infra:up": "docker compose -f infrastructure/docker-compose.yml up -d --wait",
     "infra:down": "docker compose -f infrastructure/docker-compose.yml down",
-    "prepare": "husky"
+    "prepare": "husky",
+    "db:migrate": "pnpm --filter @agentroute/db migrate"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
