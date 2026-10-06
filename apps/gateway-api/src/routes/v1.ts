@@ -8,7 +8,7 @@ import { decideApproval, getActionView, listPendingApprovals, type Database } fr
 import { z } from "zod";
 import { requireOperator, requireTenant } from "../auth.js";
 import { ApiError, parseOrThrow } from "../problem.js";
-import type { ExecutionService } from "../services/execution.js";
+import type { ExecutionService } from "@agentroute/execution";
 import type { ProposalService } from "../services/proposals.js";
 import type { App } from "../types.js";
 

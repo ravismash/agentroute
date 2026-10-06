@@ -1,6 +1,6 @@
 import { expireDueApprovals, type Database } from "@agentroute/db";
 import type { Logger } from "@agentroute/telemetry";
-import type { ExecutionService } from "./services/execution.js";
+import type { ExecutionService } from "@agentroute/execution";
 
 export interface BackgroundJobs {
   stop: () => Promise<void>;

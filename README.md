@@ -14,7 +14,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 3.5 complete**: reply grounding, help-center RAG with retrieval evals, LLM-as-judge and model comparison. See the [roadmap](#roadmap).
+> Status: **Phase 4 complete**: transactional outbox → Redis Streams, idempotent consumers (audit, stats), dead-letter queue and replay, worker. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -43,11 +43,13 @@ Full details are in [docs/design.md](docs/design.md): requirements, SLOs, capaci
 ```
 apps/gateway-api/       Fastify gateway: proposals, approvals, execution, Stripe (test mode), reconciliation
 apps/approval-ui/       Operator approval dashboard (static, strict CSP), served at /ui/
+apps/worker/            Outbox relay, Redis Streams consumers (audit, stats), DLQ/replay, approval expiry, reconciliation
 apps/supportops-agent/  Reference support agent (OpenAI Agents SDK); tools are gateway proposals; SSE; evals
 packages/gateway-client/ Typed TypeScript client for the gateway (safe retries with idempotency keys)
 sdk-python/             Dependency-free Python client + example agent loop
 packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
 packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
+packages/execution/     Effectively-once execution: executors, Stripe adapter, reconciliation (shared by gateway and worker)
 packages/knowledge/     Help-center RAG: chunking, BM25 + embeddings, hybrid (RRF), retrieval evals
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
@@ -69,6 +71,7 @@ cp .env.example .env # add a Stripe *test-mode* key (optional: without one, refu
 pnpm build
 pnpm db:seed         # migrates, creates demo data + Stripe test payments, writes .dev-credentials.json
 pnpm start           # gateway on :8080, approval dashboard at http://localhost:8080/ui/
+pnpm worker:start    # worker on :8082: event relay, audit/stats consumers, background jobs
 ```
 
 `.dev-credentials.json` (git-ignored) holds a tenant API key for agents and an operator token for the dashboard.
@@ -132,6 +135,19 @@ decision = AgentRoute("http://localhost:8080", api_key).propose(
 
 See [sdk-python/README.md](sdk-python/README.md).
 
+## Event pipeline
+
+Decisions, approvals and executions are written to a Postgres **outbox** in the same transaction as the change. The worker relays them to **Redis Streams**, where consumer groups write the audit log and daily stats. Every consumer is idempotent, so redelivery is harmless.
+
+```bash
+curl localhost:8082/status                                   # backlog, lag, pending, dead letters
+pnpm --filter @agentroute/worker replay dlq list             # inspect dead letters
+pnpm --filter @agentroute/worker replay dlq retry            # re-publish after a fix
+pnpm --filter @agentroute/worker replay outbox --since <ISO> # rebuild the stream after Redis data loss
+```
+
+Verified live: `kill -9` on the worker under traffic, while the API kept serving, 12 events buffered, then all 62 events delivered exactly once after restart. See [ADR-0007](docs/adr/0007-event-pipeline.md).
+
 ## AI engineering: how the hard problems are handled
 
 | Problem                              | How AgentRoute handles it                                                                                                                                                                   | Evidence                                                                             |
@@ -184,6 +200,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0004: Execute the stored proposal; never re-ask the LLM after approval](docs/adr/0004-execute-the-stored-proposal.md)
 - [ADR-0005: SupportOps agent design: tools as proposals, provider-agnostic, offline evals](docs/adr/0005-supportops-agent-design.md)
 - [ADR-0006: Reply grounding, help-center retrieval and judged evals](docs/adr/0006-grounding-retrieval-and-judged-evals.md)
+- [ADR-0007: Event pipeline: transactional outbox → Redis Streams → idempotent consumers](docs/adr/0007-event-pipeline.md)
 
 ## Roadmap
 
@@ -194,7 +211,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                  |
 | 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                      |
 | 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison   |
-| 4     | 14–16 | Outbox relay, Redis Streams consumers, DLQ, replay                               |
+| 4     | 14–16 | ✅ Outbox relay, Redis Streams consumers, DLQ, replay                            |
 | 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                              |
 | 6     | 19–20 | Fault injection, load tests, dashboards, threat model                            |
 | 7     | 21–22 | Cloud Run deployment, Helm chart                                                 |

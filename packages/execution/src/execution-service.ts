@@ -10,7 +10,7 @@ import {
   type ExecutionOutcome,
 } from "@agentroute/db";
 import type { Logger } from "@agentroute/telemetry";
-import type { Prepared, ToolExecutor } from "../executors.js";
+import type { Prepared, ToolExecutor } from "./executors.js";
 
 export interface ExecutionReport {
   state: ActionState;
@@ -77,6 +77,7 @@ export class ExecutionService {
             ...(prepared.failure ?? { code: "NO_EXECUTOR", message: "no executor" }),
           },
           traceId,
+          action: summaryOf(action),
         });
         return { kind: "skipped" as const, state: "failed" as ActionState };
       }
@@ -100,7 +101,15 @@ export class ExecutionService {
     }
 
     await this.db.transaction(async (tx) => {
-      await finishExecution(tx, { tenantId, actionId, executionId, from: "started", outcome, traceId });
+      await finishExecution(tx, {
+        tenantId,
+        actionId,
+        executionId,
+        from: "started",
+        outcome,
+        traceId,
+        action: summaryOf(action),
+      });
       await executor.complete(
         tx,
         { tenantId, actionId, amountMinor: action.amountMinor, target: prepared.target },
@@ -146,6 +155,7 @@ export class ExecutionService {
             executionId: item.executionId,
             from: item.status,
             outcome,
+            action: summaryOf(action),
           });
           await executor.complete(tx, ctx, outcome);
         });
@@ -162,6 +172,10 @@ export class ExecutionService {
   private loadAction(tenantId: string, actionId: string): Promise<ExecutableAction | undefined> {
     return this.db.transaction((tx) => lockAction(tx, tenantId, actionId));
   }
+}
+
+function summaryOf(action: ExecutableAction) {
+  return { tool: action.tool, amountMinor: action.amountMinor, currency: action.currency };
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

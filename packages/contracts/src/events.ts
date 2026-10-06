@@ -23,7 +23,7 @@ export const EventEnvelope = z.object({
   event_id: z.uuid(),
   type: EventType,
   tenant_id: Id,
-  action_id: Id,
+  action_id: z.uuid().nullable(),
   occurred_at: IsoTimestamp,
   trace_id: z.string().optional(),
   payload: z.record(z.string(), z.unknown()),

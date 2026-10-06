@@ -70,6 +70,12 @@ erDiagram
 
 Aggregate limits (for example, "refund total per case over 30 days") are computed from `actions` with the partial index `ix_actions_usage`. Actions in `denied`, `rejected`, `expired` or `cancelled` states don't count; pending and in-flight actions do, which is the conservative choice. The gateway takes a per-customer advisory lock inside the decision transaction, so two concurrent proposals can't both slip under a limit.
 
+## Event pipeline tables (migration 0003)
+
+- `tr_outbox_notify` fires `NOTIFY agentroute_outbox` once per insert statement, so the relay wakes immediately. Polling is the fallback.
+- `audit_log.trace_id` links audit rows to the request that caused them.
+- `daily_action_stats (tenant_id, day, tool, metric)` holds counters maintained by the stats consumer with `ON CONFLICT … DO UPDATE SET value = value + EXCLUDED.value`, run in the same transaction as the `processed_events` dedupe, so redelivery never double-counts.
+
 ## Planned
 
 - Monthly partitioning of `audit_log` and `outbox` once volume requires it (see design doc §4).

@@ -10,7 +10,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Database, issueApiKey, issueOperatorToken, migrate, randomBase62 } from "@agentroute/db";
 import { loadConfig } from "../config.js";
-import { FakePaymentGateway, StripePaymentGateway, type PaymentGateway } from "../payments.js";
+import { FakePaymentGateway, StripePaymentGateway, type PaymentGateway } from "@agentroute/execution";
 
 const CREDENTIALS_FILE = fileURLToPath(new URL("../../../../.dev-credentials.json", import.meta.url));
 const TENANT = "acme";

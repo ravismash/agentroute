@@ -110,6 +110,8 @@ export async function finishExecution(
     from: "started" | "unknown";
     outcome: ExecutionOutcome;
     traceId?: string | undefined;
+    /** Copied into the event so consumers need no extra lookups. */
+    action?: { tool: string; amountMinor: number | null; currency: string | null } | undefined;
   },
 ): Promise<void> {
   const o = input.outcome;
@@ -136,7 +138,12 @@ export async function finishExecution(
       tenantId: input.tenantId,
       actionId: input.actionId,
       type: o.status === "succeeded" ? "action.succeeded" : "action.failed",
-      payload: o.status === "succeeded" ? { provider_ref: o.providerRef } : { error_code: o.code },
+      payload: {
+        tool: input.action?.tool ?? null,
+        amount_minor: input.action?.amountMinor ?? null,
+        currency: input.action?.currency ?? null,
+        ...(o.status === "succeeded" ? { provider_ref: o.providerRef } : { error_code: o.code }),
+      },
       traceId: input.traceId,
     },
   ]);

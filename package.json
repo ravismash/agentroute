@@ -23,7 +23,8 @@
     "evals": "pnpm --filter @agentroute/supportops-agent evals",
     "test:python": "cd sdk-python && python3 -W error::ResourceWarning -m unittest discover -s tests",
     "eval:retrieval": "pnpm --filter @agentroute/knowledge eval:retrieval",
-    "evals:judge-calibrate": "pnpm --filter @agentroute/supportops-agent evals:judge-calibrate"
+    "evals:judge-calibrate": "pnpm --filter @agentroute/supportops-agent evals:judge-calibrate",
+    "worker:start": "pnpm --filter @agentroute/worker start"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

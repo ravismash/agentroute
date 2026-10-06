@@ -24,7 +24,9 @@ const services = await createServices(
   },
   logger,
 );
-const jobs = startBackgroundJobs(services.db, services.execution, logger, config.JOBS_INTERVAL_MS);
+const jobs = config.RUN_BACKGROUND_JOBS
+  ? startBackgroundJobs(services.db, services.execution, logger, config.JOBS_INTERVAL_MS)
+  : { stop: () => Promise.resolve() };
 const app = buildApp({ logger, services, readinessChecks: { postgres: () => services.db.ping() } });
 
 async function shutdown(signal: string): Promise<void> {

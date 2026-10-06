@@ -29,7 +29,7 @@ import {
 } from "@agentroute/policy-engine";
 import type { Logger } from "@agentroute/telemetry";
 import { ApiError } from "../problem.js";
-import type { ExecutionService } from "./execution.js";
+import type { ExecutionService } from "@agentroute/execution";
 import type { PolicyCatalog } from "./policy-catalog.js";
 
 const STATE_FOR_EFFECT: Readonly<Record<DecisionEffect, NewProposal["state"]>> = {

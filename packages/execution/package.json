@@ -1,0 +1,27 @@
+{
+  "name": "@agentroute/execution",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Effectively-once action execution: executors, payment adapters (Stripe test mode / fake), reconciliation",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@agentroute/contracts": "workspace:*",
+    "@agentroute/db": "workspace:*",
+    "@agentroute/telemetry": "workspace:*",
+    "stripe": "^23.0.0"
+  }
+}

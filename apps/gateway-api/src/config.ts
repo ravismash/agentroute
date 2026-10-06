@@ -28,6 +28,11 @@ const ConfigSchema = z
       .max(7 * 86400)
       .default(86400),
     JOBS_INTERVAL_MS: z.coerce.number().int().min(1000).default(15_000),
+    /** Approval expiry and reconciliation normally run in the worker; enable only for single-process setups. */
+    RUN_BACKGROUND_JOBS: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
   })
   .superRefine((c, ctx) => {
     if (c.NODE_ENV === "production" && !c.STRIPE_SECRET_KEY) {

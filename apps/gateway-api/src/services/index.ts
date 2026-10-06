@@ -1,9 +1,13 @@
 import { Database } from "@agentroute/db";
 import type { Logger } from "@agentroute/telemetry";
-import { buildExecutors } from "../executors.js";
-import { FakePaymentGateway, StripePaymentGateway, type PaymentGateway } from "../payments.js";
+import {
+  buildExecutors,
+  ExecutionService,
+  FakePaymentGateway,
+  StripePaymentGateway,
+  type PaymentGateway,
+} from "@agentroute/execution";
 import type { V1Services } from "../routes/v1.js";
-import { ExecutionService } from "./execution.js";
 import { PolicyCatalog } from "./policy-catalog.js";
 import { ProposalService } from "./proposals.js";
 

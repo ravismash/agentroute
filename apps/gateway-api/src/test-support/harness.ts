@@ -6,7 +6,7 @@ import { createLogger } from "@agentroute/telemetry";
 import pg from "pg";
 import { inject } from "vitest";
 import { buildApp, type GatewayApp } from "../app.js";
-import { FakePaymentGateway } from "../payments.js";
+import { FakePaymentGateway } from "@agentroute/execution";
 import { createServices, type Services } from "../services/index.js";
 
 const POLICIES_DIR = fileURLToPath(new URL("../../../../policies", import.meta.url));

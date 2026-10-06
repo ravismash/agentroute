@@ -157,6 +157,7 @@ export async function insertProposal(tx: Queryable, p: NewProposal): Promise<voi
       actionId: p.id,
       type: "decision.made",
       payload: {
+        tool: p.tool,
         effect: p.decision.effect,
         state: p.state,
         reasons: p.decision.reasons,
