@@ -1,0 +1,107 @@
+# Baseline policy for the SupportOps reference agent.
+#
+# Evaluation order: blocked tools → tool must be listed (default deny) →
+# argument schema → requirements (any failure = deny) → escalations
+# (most severe wins). All amounts are integer minor units (cents).
+apiVersion: agentroute/v1
+id: support-agent-baseline
+version: 1.0.0
+tenant: "*"
+agents: [supportops]
+default: deny
+description: Auto-approve small refunds, escalate larger ones, block data export and destructive tools.
+
+blocked_tools:
+  - export_customer_data
+  - delete_account
+  - update_payment_method
+
+tools:
+  get_customer:
+    effect: allow
+    require:
+      - id: customer-matches-case
+        type: context_equals
+        arg: customer_id
+        field: case.customer_id
+
+  get_subscription:
+    effect: allow
+    require:
+      - id: customer-matches-case
+        type: context_equals
+        arg: customer_id
+        field: case.customer_id
+
+  draft_reply:
+    effect: allow
+    require:
+      - id: reply-matches-case
+        type: context_equals
+        arg: case_id
+        field: case.id
+
+  create_refund_request:
+    effect: allow
+    require:
+      - id: customer-matches-case
+        description: Stops prompt injection from redirecting a refund to another customer.
+        type: context_equals
+        arg: customer_id
+        field: case.customer_id
+      - id: currency-matches-subscription
+        type: context_equals
+        arg: currency
+        field: subscription.currency
+    escalate:
+      - id: refund-over-auto-limit
+        description: Refunds above $25.00 need a human.
+        type: threshold
+        arg: amount_minor
+        gt: 2500
+        effect: approval_required
+      - id: case-refund-total
+        description: Stops splitting a large refund into several small ones.
+        type: aggregate
+        metric: refund_amount_minor
+        scope: case
+        window: 30d
+        gt: 2500
+        effect: approval_required
+      - id: customer-daily-refund-count
+        type: aggregate
+        metric: refund_count
+        scope: customer
+        window: 24h
+        gt: 3
+        effect: deny
+      - id: refund-hard-ceiling
+        description: Refunds above $500.00 must go through finance, not the agent.
+        type: threshold
+        arg: amount_minor
+        gt: 50000
+        effect: deny
+
+  change_subscription_plan:
+    effect: allow
+    require:
+      - id: customer-matches-case
+        type: context_equals
+        arg: customer_id
+        field: case.customer_id
+      - id: subscription-matches-customer
+        type: context_equals
+        arg: subscription_id
+        field: subscription.id
+      - id: known-plan
+        type: arg_in
+        arg: target_plan
+        values: [starter, pro, business]
+    escalate:
+      - id: repeat-plan-change
+        type: aggregate
+        metric: plan_change_count
+        scope: customer
+        window: 30d
+        gt: 1
+        effect: approval_required

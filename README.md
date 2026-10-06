@@ -14,7 +14,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 0 — foundations** (monorepo, contracts, telemetry, gateway skeleton, CI). See the [development plan](#roadmap).
+> Status: **Phase 1: policy engine complete** (thresholds, context binding, aggregate limits, fail-closed, dry-run). See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -42,8 +42,10 @@ Full details are in [docs/design.md](docs/design.md): requirements, SLOs, capaci
 
 ```
 apps/gateway-api/       Fastify gateway (health/readiness, RFC 7807 errors)
+packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator; dry-run and policy comparison
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
+policies/               Versioned policy files (support-agent-baseline.v1.yaml)
 infrastructure/         docker-compose (Postgres 16, Redis 7 with AOF)
 docs/                   design doc, ADRs
 .github/workflows/      CI: format, lint, typecheck, build, test, audit
@@ -80,6 +82,10 @@ curl localhost:8080/healthz
 
 A Husky pre-commit hook runs ESLint and Prettier on staged files. CI runs all of the above plus `pnpm audit`.
 
+## Policies
+
+Policies are YAML files that support-ops staff can read and change. See the [policy reference](docs/policy-reference.md) for the evaluation order, rule types and how to dry-run a change.
+
 ## Architecture decisions
 
 - [ADR-0001: TypeScript monorepo and core stack](docs/adr/0001-monorepo-and-stack.md)
@@ -90,7 +96,7 @@ A Husky pre-commit hook runs ESLint and Prettier on staged files. CI runs all of
 | Phase | Days  | Scope                                                                            |
 | ----- | ----- | -------------------------------------------------------------------------------- |
 | 0     | 1–2   | ✅ Foundations: monorepo, contracts, telemetry, gateway skeleton, CI, design doc |
-| 1     | 3–6   | Policy engine: thresholds, context binding, aggregate limits, dry-run            |
+| 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run         |
 | 2     | 7–10  | Action store, state machine, idempotent execution, approvals                     |
 | 3     | 11–13 | SupportOps agent, SSE, evals, Python SDK                                         |
 | 4     | 14–16 | Outbox relay, Redis Streams consumers, DLQ, replay                               |
