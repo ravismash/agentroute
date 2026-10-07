@@ -1,0 +1,81 @@
+# Render blueprint for the AgentRoute demo.
+#
+# One-time setup (no CLI needed):
+#   1. Push this repo to GitHub (done: github.com/ravismash/agentroute).
+#   2. Render dashboard → New → Blueprint → connect this repo → Apply.
+#   3. When prompted, paste STRIPE_SECRET_KEY (a Stripe *test* key, sk_test_… / rk_test_…).
+#      Leave it blank to run with the in-memory fake refund gateway instead.
+#   4. After the first deploy, open the gateway's Shell and seed demo data + an API key:
+#        node apps/gateway-api/dist/scripts/seed.js
+#      (writes .dev-credentials.json inside the instance; copy the operator token to log into /ui/).
+#
+# Postgres migrations run automatically before each gateway deploy (preDeployCommand).
+#
+# Note: Render occasionally renames fields (Redis is now "Key Value"). If Apply
+# rejects `type: redis`, create a Key Value instance in the dashboard and set
+# REDIS_URL on both services to its internal connection string.
+
+databases:
+  - name: agentroute-db
+    plan: free
+    databaseName: agentroute
+    user: agentroute
+
+services:
+  # Redis (Key Value) for streams, rate limits and budgets.
+  - type: redis
+    name: agentroute-redis
+    plan: free
+    ipAllowList: [] # only reachable from Render services
+
+  # Gateway API + approval dashboard (public).
+  - type: web
+    name: agentroute-gateway
+    runtime: docker
+    plan: free
+    dockerfilePath: ./infrastructure/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    preDeployCommand: node packages/db/dist/cli.js migrate
+    dockerCommand: node apps/gateway-api/dist/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentroute-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: agentroute-redis
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false # paste a Stripe test key in the dashboard, or leave blank for the fake
+
+  # Worker: outbox relay, audit/stats consumers, approval expiry, reconciliation.
+  - type: worker
+    name: agentroute-worker
+    runtime: docker
+    plan: free
+    dockerfilePath: ./infrastructure/Dockerfile
+    dockerContext: .
+    dockerCommand: node apps/worker/dist/main.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "8082"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentroute-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: agentroute-redis
+          property: connectionString
+      - key: STRIPE_SECRET_KEY
+        sync: false

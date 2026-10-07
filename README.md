@@ -63,6 +63,8 @@ docs/                   design doc, ADRs
 
 Requirements: Node 22+, Docker. pnpm is provided through Corepack.
 
+> **Live demo:** deploy your own in ~10 min with the [Render blueprint](render.yaml) — see [docs/deploy.md](docs/deploy.md).
+
 ```bash
 corepack enable
 pnpm install

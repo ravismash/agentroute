@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.env
+.env.*
+.dev-credentials.json
+.cache
+apps/supportops-agent/evals/results
+*.bak*
