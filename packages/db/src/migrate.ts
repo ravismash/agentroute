@@ -124,3 +124,18 @@ export async function migrate(client: pg.ClientBase, options: MigrateOptions = {
     await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_ID]);
   }
 }
+
+/** Open a short-lived connection, run pending migrations, and close it. */
+export async function runMigrations(
+  connectionString: string,
+  options: MigrateOptions = {},
+): Promise<MigrateResult> {
+  const { Client } = await import("pg");
+  const client = new Client({ connectionString, application_name: "agentroute-migrate" });
+  await client.connect();
+  try {
+    return await migrate(client, options);
+  } finally {
+    await client.end();
+  }
+}

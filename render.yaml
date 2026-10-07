@@ -36,12 +36,14 @@ services:
     dockerfilePath: ./infrastructure/Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
-    # Free tier has no preDeployCommand, so migrate on start. The migrator is
-    # idempotent and takes an advisory lock, so running it each boot is safe.
-    dockerCommand: sh -c "node packages/db/dist/cli.js migrate && node apps/gateway-api/dist/server.js"
+    # Free tier has no preDeployCommand; the gateway runs migrations at startup
+    # when MIGRATE_ON_START=true (idempotent, advisory-locked). The image's
+    # default CMD already starts the gateway, so no dockerCommand is needed.
     envVars:
       - key: NODE_ENV
         value: production
+      - key: MIGRATE_ON_START
+        value: "true"
       - key: PORT
         value: "8080"
       - key: DATABASE_URL

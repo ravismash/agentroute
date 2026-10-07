@@ -1,3 +1,4 @@
+import { runMigrations } from "@agentroute/db";
 import { createLogger, startTracing } from "@agentroute/telemetry";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
@@ -13,6 +14,17 @@ const logger = createLogger({ service: SERVICE, level: config.LOG_LEVEL });
 if (!config.DATABASE_URL) {
   logger.fatal("DATABASE_URL is required");
   process.exit(1);
+}
+
+if (config.MIGRATE_ON_START) {
+  // Idempotent and advisory-locked, so it is safe to run on every boot and
+  // across concurrent instances. Used where there is no separate migrate step.
+  const result = await runMigrations(config.DATABASE_URL, {
+    log: (m) => {
+      logger.info({ migration: m }, "migrated");
+    },
+  });
+  logger.info({ applied: result.applied.length }, "migrations up to date");
 }
 
 const services = await createServices(

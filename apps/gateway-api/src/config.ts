@@ -32,6 +32,11 @@ const ConfigSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /** Run DB migrations at startup (for platforms without a pre-deploy step, e.g. Render free tier). */
+  MIGRATE_ON_START: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 // Note: without STRIPE_SECRET_KEY the gateway runs with an in-memory fake payment
 // gateway (logged as a warning at startup). This keeps demo deploys bootable; a
