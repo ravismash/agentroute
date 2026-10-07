@@ -1,3 +1,12 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# Dependency build-script decisions (pnpm requires an explicit choice).
+# These optional native deps are intentionally NOT built:
+#   cpu-features, ssh2 — SSH transport for Testcontainers; we use the Docker socket
+#   protobufjs        — codegen postinstall; the prebuilt package works
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
