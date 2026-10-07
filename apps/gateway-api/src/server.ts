@@ -3,6 +3,7 @@ import { createLogger, startTracing } from "@agentroute/telemetry";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { startBackgroundJobs } from "./jobs.js";
+import { seedDemoData } from "./seed.js";
 import { createServices } from "./services/index.js";
 
 const SERVICE = "gateway-api";
@@ -36,6 +37,31 @@ const services = await createServices(
   },
   logger,
 );
+if (config.SEED_ON_START) {
+  // Demo convenience for platforms without a shell (e.g. Render free tier):
+  // seed the demo world and log fresh credentials so they can be copied from
+  // the service logs. Not for real deployments — it prints a usable token.
+  try {
+    const creds = await seedDemoData(services.db, services.payments, {
+      issueCredentials: true,
+      log: (m) => {
+        logger.info({ seed: m }, "seed");
+      },
+    });
+    if (creds) {
+      // Intentional plaintext to the service logs (demo only). The structured
+      // logger would redact key-shaped strings, so print directly.
+      console.log("\n=== AgentRoute demo credentials (SEED_ON_START) ===");
+      console.log(`operator_token : ${creds.operator_token}   ← paste into /ui/`);
+      console.log(`api_key        : ${creds.api_key}`);
+      console.log(`payments_mode  : ${creds.payments_mode}`);
+      console.log("Copy these, then remove SEED_ON_START from the environment.\n");
+    }
+  } catch (err) {
+    logger.error({ err }, "seed-on-start failed");
+  }
+}
+
 const jobs = config.RUN_BACKGROUND_JOBS
   ? startBackgroundJobs(services.db, services.execution, logger, config.JOBS_INTERVAL_MS)
   : { stop: () => Promise.resolve() };

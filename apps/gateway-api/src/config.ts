@@ -37,6 +37,11 @@ const ConfigSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  /** Demo only: seed demo data at startup and log credentials (no shell needed). */
+  SEED_ON_START: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 // Note: without STRIPE_SECRET_KEY the gateway runs with an in-memory fake payment
 // gateway (logged as a warning at startup). This keeps demo deploys bootable; a
