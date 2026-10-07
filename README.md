@@ -174,6 +174,8 @@ Verified live: `kill -9` on the worker under traffic, while the API kept serving
 
 See [ADR-0006](docs/adr/0006-grounding-retrieval-and-judged-evals.md).
 
+**Measured with a live model** (OpenRouter, [full results](docs/eval-results.md)): across gpt-5.6-luna, gpt-5.4-mini and gemini-2.5-flash, **zero hard-safety breaches** (no cross-customer or over-limit refund ever allowed) — the gateway is the safety floor, not the model. Vector retrieval lifts held-out recall@5 from 0.75 (BM25) to 0.92; the judge calibrates at Cohen's κ 0.92; cost is under $0.003 per resolved case.
+
 ```bash
 pnpm eval:retrieval                    # recall@k / MRR: BM25, plus vector and hybrid with a key
 pnpm evals -- --judge                  # agent evals + LLM-as-judge (needs OPENROUTER_API_KEY)

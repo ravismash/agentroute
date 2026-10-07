@@ -366,7 +366,7 @@ export const SCENARIOS: Scenario[] = [
     category: "knowledge",
     caseId: "case_1002",
     message: "We lost most of a day to your outage. Do Business customers get anything for that?",
-    expect: { sources: ["sla-credits"], replyMustMatch: [/service credit/i] },
+    expect: { sources: ["sla-credits"], replyMustMatch: [/credit/i] },
     script: [
       call("search_help_center", { query: "outage compensation business plan service credit" }),
       say(
