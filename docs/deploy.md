@@ -11,7 +11,7 @@ It needs `DATABASE_URL` (Postgres) and `REDIS_URL`, plus an optional `STRIPE_SEC
 
 1. Dashboard → **New → Blueprint** → connect `github.com/ravismash/agentroute` → **Apply**. Render reads [`render.yaml`](../render.yaml) and provisions the gateway (web), the worker, managed Postgres and Redis.
 2. Paste a Stripe **test** key for `STRIPE_SECRET_KEY` when prompted (or leave blank for the fake refund gateway).
-3. Migrations run automatically before the gateway deploys (`preDeployCommand`).
+3. Migrations run automatically when the gateway starts (idempotent; free tier has no pre-deploy step).
 4. In the gateway service's **Shell**, seed demo data and credentials:
    ```
    node apps/gateway-api/dist/scripts/seed.js

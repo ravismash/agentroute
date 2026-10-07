@@ -36,8 +36,9 @@ services:
     dockerfilePath: ./infrastructure/Dockerfile
     dockerContext: .
     healthCheckPath: /healthz
-    preDeployCommand: node packages/db/dist/cli.js migrate
-    dockerCommand: node apps/gateway-api/dist/server.js
+    # Free tier has no preDeployCommand, so migrate on start. The migrator is
+    # idempotent and takes an advisory lock, so running it each boot is safe.
+    dockerCommand: sh -c "node packages/db/dist/cli.js migrate && node apps/gateway-api/dist/server.js"
     envVars:
       - key: NODE_ENV
         value: production
