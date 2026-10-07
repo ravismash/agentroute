@@ -1,6 +1,12 @@
 # Evaluation results (live LLM)
 
-Measured on 2026-10-07 against OpenRouter. Agent runs go through the in-process gateway (real policy engine, no side effects). Reproduce with the commands in each section. Numbers vary slightly run-to-run (LLM non-determinism); the conclusions are stable.
+Measured on 2026-10-07 against OpenRouter. Agent runs go through the in-process gateway (real policy engine, no side effects).
+
+**Provenance and scope — read first.**
+
+- Model IDs are the **current OpenRouter catalog** as of this date (verifiable via `GET https://openrouter.ai/api/v1/models`); several 2024-era names such as `claude-3.5-sonnet` are no longer served. Raw per-run outputs (token counts, latencies, per-case decisions) are committed under `apps/supportops-agent/evals/results/`.
+- **Sample size is small: 24 hand-written scenarios, one run per model.** With LLM non-determinism, a single case moves a model's score by ~4 points. **These are directional smoke-test results, not a statistical benchmark.** Do not read model-economics conclusions into them; a real benchmark needs hundreds of randomized vectors and multiple runs per cell with confidence intervals.
+- What _is_ robust here are the **deterministic** results, which do not depend on the LLM and are repeatable: the concurrency/crash tests (Phase 2/4), the 32-case red-team suite, and the 30-case e2e suite. Those are the load-bearing evidence; the agent evals below are a quality signal on top.
 
 ## 1. Retrieval: vector beats BM25, and beats hybrid on unseen queries
 
@@ -22,9 +28,9 @@ Measured on 2026-10-07 against OpenRouter. Agent runs go through the in-process 
 - Confusion: tp 11, tn 12, fp 1, fn 0 — one false positive (the judge was stricter than the author on a polite-denial reply).
 - **Judge variance observed in use:** the same "I've refunded the $15" reply pattern scored faithfulness 5 in calibration but 2 in the agent eval. A single judge pass is a useful signal, not ground truth; deterministic checks remain the gate.
 
-## 3. Agent: safety is model-independent
+## 3. Agent quality across models (directional, n=24)
 
-`pnpm evals -- --models … --judge` · 24 scenarios · judge `anthropic/claude-sonnet-5`
+`pnpm evals -- --models … --judge` · **24 scenarios, single run per model** · judge `anthropic/claude-sonnet-5`
 
 | Model                   | task pass | judge pass | policy saves | p50  | p95  | cost / case | **hard-safety breaches** |
 | ----------------------- | --------- | ---------- | ------------ | ---- | ---- | ----------- | ------------------------ |
@@ -32,14 +38,16 @@ Measured on 2026-10-07 against OpenRouter. Agent runs go through the in-process 
 | openai/gpt-5.4-mini     | 83%       | 62%        | 7            | 3.9s | 4.4s | $0.0025     | **0**                    |
 | google/gemini-2.5-flash | 92%       | 58%        | 6            | 3.1s | 4.1s | $0.0008     | **0**                    |
 
-"Hard-safety breach" = a refund to another customer, a refund over the limit, or a blocked tool being **allowed**. There were **none, for any model**.
+"Hard-safety breach" = a refund to another customer, a refund over the limit, or a blocked tool being **allowed**. There were none in this run, for any model.
 
-**Findings.**
+**How to read this (and how not to).**
 
-- **The gateway is the safety floor, not the model.** The worst-behaving agent (gpt-5.4-mini, 83% task pass) still caused zero unauthorized actions: its mistakes — a premature small refund on a clarify case, mapping an unknown plan to a real one, a reply that over-claimed — were each allowed-but-benign or **caught by grounding and held for review**. The invariants that protect money held regardless of model quality.
-- **More expensive ≠ safer.** gpt-5.4-mini costs ~4× gpt-5.6-luna yet had the lowest task pass rate. Model choice should be measured, not assumed.
-- **Cost is negligible at this scale:** well under a third of a cent per resolved case; the judge (Sonnet) dominates eval cost, not the agent.
-- **The judge pass rate (~60%) reflects reply-quality nuance, not safety:** most judge failures are the "has been refunded" wording (the refund is issued but arrives in days) and occasional invented links — quality polish for a cheap model, not unsafe behaviour.
+- The "0 breaches" column is **not a discovery** — it is the expected consequence of the design, and this run is a check that the design behaves as intended, not evidence that it is novel. The hard invariants (argument-level authorization against server-side case data, numeric thresholds, aggregate limits, blocked-tool list) are enforced in deterministic code _below_ the model, so model quality cannot change them. A principal engineer should read this as "the guardrails were exercised by three different drivers and none got around them," nothing grander. The non-trivial part is _where_ the check happens (against stored case data, not the agent's claimed arguments — the confused-deputy defense), not that a check exists.
+- **Do not draw cost/quality conclusions from this.** gpt-5.4-mini scored lowest here despite costing more, but at n=24 with single runs that is within noise. The honest statement is only: "on these 24 scenarios, cost did not predict task-pass rate — which is a reason to measure per use case, not a general law."
+- **Task-pass vs judge-pass gap is reply-quality nuance, not safety.** Most judge failures are the "has been refunded" wording (the refund is issued but settles in days) and occasional invented links. That is polish for a cheap model, not unsafe behaviour. Judge scores also vary run-to-run (§2), so treat ~60% as a soft signal.
+- **The load-bearing safety evidence is deterministic and repeatable**, not these LLM runs: `pnpm e2e` (10 concurrent approvals → exactly 1 Stripe refund), `pnpm redteam` (32/32 adversarial cases blocked), and the `kill -9`-under-load test (0 lost/duplicated events). Those don't move with model choice or sample size.
+
+What this project actually is, stated plainly: standard enterprise patterns — API authorization, policy evaluation against trusted state, a transactional outbox, idempotent consumers, effectively-once execution — **applied to untrusted agentic tool calls**. The contribution is the application and the correctness testing, not a new safety concept.
 
 ## How to reproduce
 
