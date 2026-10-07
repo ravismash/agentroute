@@ -27,9 +27,11 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
+      # Build first: type-aware lint and typecheck resolve cross-package types
+      # from each workspace package's built output (dist).
+      - run: pnpm build
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm build
       - run: pnpm test
       - name: Agent evals (scripted model, real policy)
         run: pnpm --filter @agentroute/supportops-agent evals --scripted
