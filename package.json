@@ -24,7 +24,10 @@
     "test:python": "cd sdk-python && python3 -W error::ResourceWarning -m unittest discover -s tests",
     "eval:retrieval": "pnpm --filter @agentroute/knowledge eval:retrieval",
     "evals:judge-calibrate": "pnpm --filter @agentroute/supportops-agent evals:judge-calibrate",
-    "worker:start": "pnpm --filter @agentroute/worker start"
+    "worker:start": "pnpm --filter @agentroute/worker start",
+    "e2e": "pnpm --filter @agentroute/gateway-api e2e",
+    "load": "pnpm --filter @agentroute/gateway-api load",
+    "redteam": "pnpm --filter @agentroute/gateway-api redteam"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

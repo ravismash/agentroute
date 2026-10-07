@@ -11,7 +11,10 @@
     "test": "vitest run",
     "dev": "node --env-file-if-exists=../../.env --watch dist/server.js",
     "start": "node --env-file-if-exists=../../.env dist/server.js",
-    "seed": "node --env-file-if-exists=../../.env dist/scripts/seed.js"
+    "seed": "node --env-file-if-exists=../../.env dist/scripts/seed.js",
+    "e2e": "node --env-file-if-exists=../../.env dist/scripts/e2e.js",
+    "load": "node --env-file-if-exists=../../.env dist/scripts/load.js",
+    "redteam": "node --env-file-if-exists=../../.env dist/scripts/redteam.js"
   },
   "dependencies": {
     "@agentroute/approval-ui": "workspace:*",
@@ -21,6 +24,7 @@
     "@agentroute/policy-engine": "workspace:*",
     "@agentroute/telemetry": "workspace:*",
     "fastify": "^5.12.5",
+    "stripe": "^23.0.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

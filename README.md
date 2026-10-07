@@ -135,6 +135,18 @@ decision = AgentRoute("http://localhost:8080", api_key).propose(
 
 See [sdk-python/README.md](sdk-python/README.md).
 
+## Security and testing
+
+Beyond unit and integration tests, three suites run against a live local stack:
+
+```bash
+pnpm e2e        # 30 black-box checks: auth, policy, isolation, approvals, grounding, money, pipeline
+pnpm redteam    # 32 adversarial attacks the gateway must block (defensive red-team)
+pnpm load -- --requests 3000 --concurrency 50   # throughput, latency, pipeline catch-up
+```
+
+Latest local results: **e2e 30/30**, **redteam 32/32 attacks blocked**, **load 476 req/s, p95 153 ms, 0% errors, 10,500 events → 10,500 audit rows**. The threat model is in [docs/threat-model.md](docs/threat-model.md).
+
 ## Event pipeline
 
 Decisions, approvals and executions are written to a Postgres **outbox** in the same transaction as the change. The worker relays them to **Redis Streams**, where consumer groups write the audit log and daily stats. Every consumer is idempotent, so redelivery is harmless.

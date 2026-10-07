@@ -225,6 +225,9 @@ importers:
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
+      stripe:
+        specifier: ^23.0.0
+        version: 23.0.0(@types/node@26.6.4)
       zod:
         specifier: ^4.6.5
         version: 4.6.5
