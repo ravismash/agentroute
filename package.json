@@ -27,7 +27,10 @@
     "worker:start": "pnpm --filter @agentroute/worker start",
     "e2e": "pnpm --filter @agentroute/gateway-api e2e",
     "load": "pnpm --filter @agentroute/gateway-api load",
-    "redteam": "pnpm --filter @agentroute/gateway-api redteam"
+    "redteam": "pnpm --filter @agentroute/gateway-api redteam",
+    "prod:build": "docker build -f infrastructure/Dockerfile -t agentroute:local .",
+    "prod:up": "docker compose -f infrastructure/docker-compose.prod.yml up -d --wait",
+    "prod:down": "docker compose -f infrastructure/docker-compose.prod.yml down -v"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [

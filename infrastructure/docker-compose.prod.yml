@@ -1,0 +1,85 @@
+# Production-like stack: runs the built image (gateway + worker) with its own
+# Postgres and Redis, exactly as it would be deployed. Used to verify the
+# shippable artifact end-to-end before a cloud deploy.
+#
+#   docker build -f infrastructure/Dockerfile -t agentroute:local .
+#   docker compose -f infrastructure/docker-compose.prod.yml up -d --wait
+name: agentroute-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: agentroute
+      POSTGRES_PASSWORD: agentroute
+      POSTGRES_DB: agentroute
+    ports:
+      - "5434:5432" # exposed so the e2e harness can seed from the host
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentroute"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    image: agentroute:local
+    command: ["node", "packages/db/dist/cli.js", "migrate"]
+    environment:
+      DATABASE_URL: postgres://agentroute:agentroute@postgres:5432/agentroute
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  gateway:
+    image: agentroute:local
+    command: ["node", "apps/gateway-api/dist/server.js"]
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgres://agentroute:agentroute@postgres:5432/agentroute
+      REDIS_URL: redis://redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+    ports:
+      - "8070:8080"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    image: agentroute:local
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      PORT: "8082"
+      DATABASE_URL: postgres://agentroute:agentroute@postgres:5432/agentroute
+      REDIS_URL: redis://redis:6379
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      JOBS_INTERVAL_MS: "2000"
+    ports:
+      - "8072:8082"
+    depends_on:
+      gateway:
+        condition: service_healthy
