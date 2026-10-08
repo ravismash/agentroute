@@ -1,0 +1,27 @@
+{
+  "name": "@agentroute/limits",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Rate limiting (fail-open), LLM budget reservations (fail-closed), and circuit breakers",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "redis": "^6.3.0"
+  },
+  "devDependencies": {
+    "testcontainers": "^12.2.0"
+  }
+}

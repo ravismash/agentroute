@@ -216,6 +216,9 @@ importers:
       '@agentroute/execution':
         specifier: workspace:*
         version: link:../../packages/execution
+      '@agentroute/limits':
+        specifier: workspace:*
+        version: link:../../packages/limits
       '@agentroute/policy-engine':
         specifier: workspace:*
         version: link:../../packages/policy-engine
@@ -225,6 +228,9 @@ importers:
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
+      redis:
+        specifier: ^6.3.0
+        version: 6.3.0(@opentelemetry/api@1.9.1)
       stripe:
         specifier: ^23.0.0
         version: 23.0.0(@types/node@26.6.4)
@@ -253,6 +259,9 @@ importers:
       '@agentroute/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@agentroute/limits':
+        specifier: workspace:*
+        version: link:../../packages/limits
       '@agentroute/policy-engine':
         specifier: workspace:*
         version: link:../../packages/policy-engine
@@ -268,6 +277,9 @@ importers:
       openai:
         specifier: ^7.28.0
         version: 7.28.0(undici@8.11.2)(ws@8.22.0)(zod@4.6.5)
+      redis:
+        specifier: ^6.3.0
+        version: 6.3.0(@opentelemetry/api@1.9.1)
       zod:
         specifier: ^4.6.5
         version: 4.6.5
@@ -356,6 +368,16 @@ importers:
         version: 4.6.5
 
   packages/knowledge: {}
+
+  packages/limits:
+    dependencies:
+      redis:
+        specifier: ^6.3.0
+        version: 6.3.0(@opentelemetry/api@1.9.1)
+    devDependencies:
+      testcontainers:
+        specifier: ^12.2.0
+        version: 12.2.0
 
   packages/policy-engine:
     dependencies:

@@ -17,11 +17,13 @@
     "@agentroute/contracts": "workspace:*",
     "@agentroute/gateway-client": "workspace:*",
     "@agentroute/knowledge": "workspace:*",
+    "@agentroute/limits": "workspace:*",
     "@agentroute/policy-engine": "workspace:*",
     "@agentroute/telemetry": "workspace:*",
     "@openai/agents": "^0.18.0",
     "fastify": "^5.12.5",
     "openai": "^7.28.0",
+    "redis": "^6.3.0",
     "zod": "^4.6.5"
   }
 }

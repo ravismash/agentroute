@@ -12,6 +12,14 @@ const ConfigSchema = z.object({
   HOST: z.string().default("0.0.0.0"),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.preprocess(emptyToUndefined, z.url().optional()),
   DATABASE_URL: z.preprocess(emptyToUndefined, z.string().startsWith("postgres").optional()),
+  REDIS_URL: z.preprocess(emptyToUndefined, z.string().startsWith("redis").optional()),
+  // Per-API-key and per-tenant token buckets for POST /v1/proposals. Active only
+  // when REDIS_URL is set. Defaults sit above benchmark traffic so they guard
+  // against runaway agent loops without throttling normal use; tune down per tenant.
+  RATE_LIMIT_PER_KEY_RPS: z.coerce.number().positive().default(1000),
+  RATE_LIMIT_PER_KEY_BURST: z.coerce.number().int().positive().default(2000),
+  RATE_LIMIT_PER_TENANT_RPS: z.coerce.number().positive().default(2000),
+  RATE_LIMIT_PER_TENANT_BURST: z.coerce.number().int().positive().default(4000),
   STRIPE_SECRET_KEY: z.preprocess(
     emptyToUndefined,
     z

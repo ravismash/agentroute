@@ -34,6 +34,14 @@ const services = await createServices(
     policiesDir: config.POLICIES_DIR,
     approvalTtlSeconds: config.APPROVAL_TTL_SECONDS,
     stripeSecretKey: config.STRIPE_SECRET_KEY,
+    redisUrl: config.REDIS_URL,
+    rateLimits: {
+      perKey: { capacity: config.RATE_LIMIT_PER_KEY_BURST, refillPerSecond: config.RATE_LIMIT_PER_KEY_RPS },
+      perTenant: {
+        capacity: config.RATE_LIMIT_PER_TENANT_BURST,
+        refillPerSecond: config.RATE_LIMIT_PER_TENANT_RPS,
+      },
+    },
   },
   logger,
 );
@@ -71,6 +79,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, "shutting down");
   await app.close();
   await jobs.stop();
+  if (services.redis) await services.redis.close();
   await services.db.close();
   await tracing.shutdown();
   process.exit(0);
