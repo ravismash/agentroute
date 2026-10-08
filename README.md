@@ -233,6 +233,13 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0006: Reply grounding, help-center retrieval and judged evals](docs/adr/0006-grounding-retrieval-and-judged-evals.md)
 - [ADR-0007: Event pipeline: transactional outbox → Redis Streams → idempotent consumers](docs/adr/0007-event-pipeline.md)
 
+## More docs
+
+- [Operations runbook](docs/runbook.md) — deploy, rollback, restore, secret rotation, incident playbooks
+- [3-minute demo script](docs/demo-script.md) — narrated walkthrough of four policy decisions on the live demo
+- [From NetScaler policies to agent policies](docs/netscaler-to-agentroute.md) — why a policy-engine background maps onto this
+- [Design doc](docs/design.md) · [Threat model](docs/threat-model.md) · [Policy reference](docs/policy-reference.md) · [Database](docs/database.md) · [Eval results](docs/eval-results.md)
+
 ## Roadmap
 
 | Phase | Days  | Scope                                                                                                               |
