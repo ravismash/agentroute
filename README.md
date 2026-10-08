@@ -1,6 +1,14 @@
 # AgentRoute
 
+[![CI](https://github.com/ravismash/agentroute/actions/workflows/ci.yml/badge.svg)](https://github.com/ravismash/agentroute/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/website?url=https%3A%2F%2Fagentroute-gateway.onrender.com%2Fhealthz&label=live%20demo&up_message=online&down_message=waking)](https://agentroute-gateway.onrender.com/ui/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![TypeScript strict](https://img.shields.io/badge/TypeScript-strict-3178c6.svg)
+
 **Let AI agents take real business actions, without trusting the AI with the final decision.**
+
+> **▶ Live demo:** [agentroute-gateway.onrender.com/ui/](https://agentroute-gateway.onrender.com/ui/) — operator approval dashboard, running on Render.
+> Health: [`/healthz`](https://agentroute-gateway.onrender.com/healthz) · [`/readyz`](https://agentroute-gateway.onrender.com/readyz). On the free tier the first request after idle cold-starts in ~30 s.
 
 AgentRoute is a policy gateway for AI agents. The agent _proposes_ an action, such as a refund. AgentRoute _decides_, using the company's versioned rules:
 
@@ -14,9 +22,14 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **Phase 4 complete**: transactional outbox → Redis Streams, idempotent consumers (audit, stats), dead-letter queue and replay, worker. See the [roadmap](#roadmap).
+> Status: **deployed and live.** Phases 0–4 plus 3.5 (grounding, retrieval, judged evals) and 7 (containerised deploy) are complete: deterministic policy engine, effectively-once execution, transactional outbox → Redis Streams with DLQ and replay, reference agent, and a public Render deployment. Rate limits/budgets (Phase 5) and full observability/load (Phase 6) are next. See the [roadmap](#roadmap).
 
 ## Architecture
+
+![AgentRoute architecture](docs/architecture.svg)
+
+<details>
+<summary>Text version</summary>
 
 ```
 supportops-agent ──POST /v1/proposals──▶ gateway-api ──▶ policy-engine (pure, in-process)
@@ -27,6 +40,8 @@ supportops-agent ──POST /v1/proposals──▶ gateway-api ──▶ policy-
 approval-ui ──approve/reject──▶ gateway-api
 outbox-relay ──▶ Redis Streams ──▶ worker (audit, budget) ──▶ Postgres / DLQ
 ```
+
+</details>
 
 Design rules:
 
@@ -220,16 +235,16 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 
 ## Roadmap
 
-| Phase | Days  | Scope                                                                            |
-| ----- | ----- | -------------------------------------------------------------------------------- |
-| 0     | 1–2   | ✅ Foundations: monorepo, contracts, telemetry, gateway skeleton, CI, design doc |
-| 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run         |
-| 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                  |
-| 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                      |
-| 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison   |
-| 4     | 14–16 | ✅ Outbox relay, Redis Streams consumers, DLQ, replay                            |
-| 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                              |
-| 6     | 19–20 | Fault injection, load tests, dashboards, threat model                            |
-| 7     | 21–22 | Cloud Run deployment, Helm chart                                                 |
-| 8     | 23–24 | Buffer and design-partner beta                                                   |
-| 9     | 25    | Proof package: docs, video, article, `v0.1.0-beta`                               |
+| Phase | Days  | Scope                                                                                                               |
+| ----- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| 0     | 1–2   | ✅ Foundations: monorepo, contracts, telemetry, gateway skeleton, CI, design doc                                    |
+| 1     | 3–6   | ✅ Policy engine: thresholds, context binding, aggregate limits, dry-run                                            |
+| 2     | 7–10  | ✅ Action store, state machine, idempotent execution, approvals                                                     |
+| 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                                                         |
+| 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison                                      |
+| 4     | 14–16 | ✅ Outbox relay, Redis Streams consumers, DLQ, replay                                                               |
+| 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                                                                 |
+| 6     | 19–20 | Fault injection, load tests, dashboards, threat model                                                               |
+| 7     | 21–22 | ✅ Containerised deploy ([Render blueprint](render.yaml)), [live demo](https://agentroute-gateway.onrender.com/ui/) |
+| 8     | 23–24 | Buffer and design-partner beta                                                                                      |
+| 9     | 25    | Proof package: docs, video, article, `v0.1.0-beta`                                                                  |
