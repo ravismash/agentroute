@@ -121,6 +121,13 @@ export class OutboxRelay {
           this.log.error({ err }, "outbox relay failed; will retry");
         }
         await new Promise<void>((resolve) => {
+          // Close the race with stop(): if stop() flipped `running` and fired
+          // the previous (already-settled) wake before this executor installed
+          // the new one, resolve now instead of sleeping a full poll interval.
+          if (!this.running) {
+            resolve();
+            return;
+          }
           const timer = setTimeout(resolve, this.options.pollMs);
           this.wake = () => {
             clearTimeout(timer);
