@@ -24,6 +24,13 @@ const ConfigSchema = z.object({
   AGENT_MODEL: optionalString,
   AGENT_MAX_TURNS: z.coerce.number().int().min(1).max(20).default(8),
   CREDENTIALS_FILE: z.string().default(DEFAULT_CREDENTIALS_FILE),
+  // Phase 5 cost control: when REDIS_URL is set, each model call reserves
+  // LLM_EST_COST_MINOR against a daily ceiling (AGENT_LLM_BUDGET_MINOR) in the
+  // shared Redis ledger, keyed by AGENT_BUDGET_ID. Fail-closed when Redis is down.
+  REDIS_URL: z.preprocess(emptyToUndefined, z.string().startsWith("redis").optional()),
+  AGENT_LLM_BUDGET_MINOR: z.coerce.number().int().positive().default(200),
+  AGENT_BUDGET_ID: z.string().min(1).default("supportops"),
+  LLM_EST_COST_MINOR: z.coerce.number().int().positive().default(1),
 });
 
 export type RawConfig = z.infer<typeof ConfigSchema>;

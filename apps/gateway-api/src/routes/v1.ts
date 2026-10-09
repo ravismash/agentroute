@@ -12,10 +12,17 @@ import type { ExecutionService } from "@agentroute/execution";
 import type { ProposalService } from "../services/proposals.js";
 import type { App } from "../types.js";
 
+/** What the routes need from a rate limiter; satisfied by @agentroute/limits RateLimiter. */
+export interface RateLimiting {
+  check(tenantId: string, keyId: string): Promise<{ allowed: boolean; retryAfterSeconds: number }>;
+}
+
 export interface V1Services {
   db: Database;
   proposals: ProposalService;
   execution: ExecutionService;
+  /** Optional; when present, proposals are rate limited per key and per tenant. */
+  rateLimiter?: RateLimiting | undefined;
 }
 
 const ActionIdParams = z.object({ id: z.uuid() });
@@ -32,6 +39,13 @@ export function registerV1Routes(app: App, services: V1Services): void {
 
   app.post("/v1/proposals", async (request, reply) => {
     const tenant = await requireTenant(db, request);
+    if (services.rateLimiter) {
+      const limit = await services.rateLimiter.check(tenant.tenantId, tenant.keyId);
+      if (!limit.allowed) {
+        reply.header("retry-after", String(limit.retryAfterSeconds));
+        throw new ApiError(429, "RATE_LIMITED", "rate limit exceeded; retry after the indicated delay");
+      }
+    }
     const rawKey = request.headers[IDEMPOTENCY_HEADER];
     if (typeof rawKey !== "string") {
       throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED", `the ${IDEMPOTENCY_HEADER} header is required`);

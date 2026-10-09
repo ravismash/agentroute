@@ -7,6 +7,7 @@ import pg from "pg";
 import { inject } from "vitest";
 import { buildApp, type GatewayApp } from "../app.js";
 import { FakePaymentGateway } from "@agentroute/execution";
+import type { V1Services } from "../routes/v1.js";
 import { createServices, type Services } from "../services/index.js";
 
 const POLICIES_DIR = fileURLToPath(new URL("../../../../policies", import.meta.url));
@@ -54,7 +55,12 @@ const FIXTURES = `
     ('globex', 'pay_hank', 'cus_hank', 'stripe', 'pi_test_hank', 50000, 'USD');
 `;
 
-export async function createHarness(): Promise<Harness> {
+export interface HarnessOptions {
+  /** Inject a rate limiter to exercise the 429 path; off by default. */
+  rateLimiter?: V1Services["rateLimiter"];
+}
+
+export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
   const adminUrl = inject("adminDatabaseUrl");
   const name = `gw_${randomBytes(6).toString("hex")}`;
   const admin = new pg.Client({ connectionString: adminUrl });
@@ -90,7 +96,13 @@ export async function createHarness(): Promise<Harness> {
   const logger = createLogger({ service: "test", level: "silent" });
   const payments = new FakePaymentGateway();
   const services = await createServices(
-    { databaseUrl: url.toString(), policiesDir: POLICIES_DIR, approvalTtlSeconds: 3600, payments },
+    {
+      databaseUrl: url.toString(),
+      policiesDir: POLICIES_DIR,
+      approvalTtlSeconds: 3600,
+      payments,
+      rateLimiter: options.rateLimiter,
+    },
     logger,
   );
   const app = buildApp({ logger, services });

@@ -22,7 +22,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **deployed and live.** Phases 0–4 plus 3.5 (grounding, retrieval, judged evals) and 7 (containerised deploy) are complete: deterministic policy engine, effectively-once execution, transactional outbox → Redis Streams with DLQ and replay, reference agent, and a public Render deployment. Rate limits/budgets (Phase 5) and full observability/load (Phase 6) are next. See the [roadmap](#roadmap).
+> Status: **deployed and live.** Phases 0–5 plus 3.5 (grounding, retrieval, judged evals) and 7 (containerised deploy) are complete: deterministic policy engine, effectively-once execution, transactional outbox → Redis Streams with DLQ and replay, per-key/per-tenant rate limiting, per-tenant LLM budgets, circuit breakers, a reference agent, and a public Render deployment. Full observability and load testing (Phase 6) are next. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -66,6 +66,7 @@ packages/policy-engine/ YAML policies → validated, pure, fail-closed evaluator
 packages/db/             Postgres migrations (integrity enforced in-schema), migration runner, UUIDv7
 packages/execution/     Effectively-once execution: executors, Stripe adapter, reconciliation (shared by gateway and worker)
 packages/knowledge/     Help-center RAG: chunking, BM25 + embeddings, hybrid (RRF), retrieval evals
+packages/limits/        Token-bucket rate limiting (fail-open), LLM budget ledger (fail-closed), circuit breaker, bounded retry
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
 policies/               Versioned policy files (support-agent-baseline.v1.yaml)
@@ -179,15 +180,15 @@ Verified live: `kill -9` on the worker under traffic, while the API kept serving
 
 ## AI engineering: how the hard problems are handled
 
-| Problem                              | How AgentRoute handles it                                                                                                                                                                   | Evidence                                                                             |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **Hallucinations**                   | Tools return structured outcomes; a deterministic `grounded_reply` policy checks money and plan claims in every reply against what actually happened, and sends unbacked replies to a human | 24 grounding tests; a live "$500 refunded" lie is held for review                    |
-| **Retrieving the right information** | Help-center RAG: section chunks, BM25 + synonyms, embeddings, hybrid via RRF; replies may only cite retrieved articles                                                                      | recall@5 0.97 dev / **0.75 held-out** (BM25), with hybrid measured when a key is set |
-| **Evaluating responses**             | 24 scenarios against the real policy (CI, offline); LLM-as-judge calibrated against hand labels (Cohen's κ); citation checks                                                                | `pnpm evals`, `pnpm evals:judge-calibrate`                                           |
-| **Wrong answers**                    | Wrong _actions_ are contained by policy, approvals and the kill switch; wrong _claims_ by grounding; every failure becomes a new eval                                                       | "policy saves" counted in every eval run                                             |
-| **Cost**                             | Turn limits, token accounting per run, model comparison with live prices (budgets and routing in Phase 5)                                                                                   | `pnpm evals -- --models a,b,c`                                                       |
-| **Data security**                    | PII redaction, tenant isolation in the schema, hashed credentials, SDK trace export off, untrusted input delimited                                                                          | schema catalog tests, redaction tests                                                |
-| **Scale and monitoring**             | Stateless gateway, effectively-once execution, outbox; queues, load tests and alerting in Phases 4–6                                                                                        | design doc §11–14                                                                    |
+| Problem                              | How AgentRoute handles it                                                                                                                                                                    | Evidence                                                                             |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Hallucinations**                   | Tools return structured outcomes; a deterministic `grounded_reply` policy checks money and plan claims in every reply against what actually happened, and sends unbacked replies to a human  | 24 grounding tests; a live "$500 refunded" lie is held for review                    |
+| **Retrieving the right information** | Help-center RAG: section chunks, BM25 + synonyms, embeddings, hybrid via RRF; replies may only cite retrieved articles                                                                       | recall@5 0.97 dev / **0.75 held-out** (BM25), with hybrid measured when a key is set |
+| **Evaluating responses**             | 24 scenarios against the real policy (CI, offline); LLM-as-judge calibrated against hand labels (Cohen's κ); citation checks                                                                 | `pnpm evals`, `pnpm evals:judge-calibrate`                                           |
+| **Wrong answers**                    | Wrong _actions_ are contained by policy, approvals and the kill switch; wrong _claims_ by grounding; every failure becomes a new eval                                                        | "policy saves" counted in every eval run                                             |
+| **Cost**                             | Per-tenant daily LLM budget reserved before each model call (Redis Lua, atomic, fail-closed); turn limits; token accounting; model comparison with live prices (model routing still to come) | `pnpm evals -- --models a,b,c`                                                       |
+| **Data security**                    | PII redaction, tenant isolation in the schema, hashed credentials, SDK trace export off, untrusted input delimited                                                                           | schema catalog tests, redaction tests                                                |
+| **Scale and monitoring**             | Stateless gateway, effectively-once execution, outbox, per-key/per-tenant rate limiting and a circuit breaker on provider calls; OpenTelemetry tracing and alerting in Phase 6               | design doc §11–14                                                                    |
 
 See [ADR-0006](docs/adr/0006-grounding-retrieval-and-judged-evals.md).
 
@@ -232,6 +233,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0005: SupportOps agent design: tools as proposals, provider-agnostic, offline evals](docs/adr/0005-supportops-agent-design.md)
 - [ADR-0006: Reply grounding, help-center retrieval and judged evals](docs/adr/0006-grounding-retrieval-and-judged-evals.md)
 - [ADR-0007: Event pipeline: transactional outbox → Redis Streams → idempotent consumers](docs/adr/0007-event-pipeline.md)
+- [ADR-0008: Rate limits (fail-open), LLM budgets (fail-closed), and circuit breakers](docs/adr/0008-rate-limits-budgets-circuit-breakers.md)
 
 ## More docs
 
@@ -250,7 +252,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | 3     | 11–13 | ✅ SupportOps agent, SSE, evals, Python SDK                                                                         |
 | 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison                                      |
 | 4     | 14–16 | ✅ Outbox relay, Redis Streams consumers, DLQ, replay                                                               |
-| 5     | 17–18 | Rate limits, budgets, circuit breakers, kill switch                                                                 |
+| 5     | 17–18 | ✅ Rate limits (token bucket, fail-open), LLM budgets (fail-closed), circuit breakers, kill switch                  |
 | 6     | 19–20 | Fault injection, load tests, dashboards, threat model                                                               |
 | 7     | 21–22 | ✅ Containerised deploy ([Render blueprint](render.yaml)), [live demo](https://agentroute-gateway.onrender.com/ui/) |
 | 8     | 23–24 | Buffer and design-partner beta                                                                                      |

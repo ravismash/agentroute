@@ -21,9 +21,11 @@
     "@agentroute/contracts": "workspace:*",
     "@agentroute/db": "workspace:*",
     "@agentroute/execution": "workspace:*",
+    "@agentroute/limits": "workspace:*",
     "@agentroute/policy-engine": "workspace:*",
     "@agentroute/telemetry": "workspace:*",
     "fastify": "^5.12.5",
+    "redis": "^6.3.0",
     "stripe": "^23.0.0",
     "zod": "^4.6.5"
   },
