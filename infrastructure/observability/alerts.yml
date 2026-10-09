@@ -1,0 +1,53 @@
+# Prometheus alert rules for AgentRoute, as code. These map to the SLIs and
+# alerts in the design doc (§1.14): decision latency, decision mix anomalies,
+# rate-limit pressure, execution failures and server errors.
+groups:
+  - name: agentroute-slo
+    rules:
+      - alert: DecisionLatencyBreachesSLO
+        # p95 gateway decision overhead over the 25 ms SLO for 10 minutes.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(agentroute_decision_duration_seconds_bucket[5m])) by (le)
+          ) > 0.025
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Decision overhead p95 above 25 ms SLO"
+          description: "Gateway policy-decision p95 has exceeded 25 ms for 10m (excludes the LLM)."
+
+      - alert: ExecutionFailuresDetected
+        expr: sum(rate(agentroute_executions_total{outcome="failed"}[5m])) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Money-action executions are failing"
+          description: "One or more executions are terminating in state=failed. Check the executor and provider."
+
+      - alert: DenyRateSpike
+        # More than half of decisions are denials — possible attack or bad policy.
+        expr: |
+          sum(rate(agentroute_decisions_total{effect="deny"}[5m]))
+            / sum(rate(agentroute_decisions_total[5m])) > 0.5
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Deny rate above 50%"
+          description: "Unusually high denial rate; check for prompt-injection bursts or a bad policy deploy."
+
+      - alert: RateLimitingPressure
+        expr: sum(rate(agentroute_rate_limited_total[5m])) > 10
+        for: 5m
+        labels: { severity: info }
+        annotations:
+          summary: "Sustained rate limiting"
+          description: "Clients are being rate limited at >10/s; a tenant may need a higher limit or is looping."
+
+      - alert: ServerErrors
+        expr: sum(rate(agentroute_http_request_duration_seconds_count{status="5xx"}[5m])) > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Gateway returning 5xx"
+          description: "The gateway is returning server errors. Check logs and downstream dependencies."

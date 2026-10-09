@@ -5,6 +5,7 @@ import {
   ProposalRequest,
 } from "@agentroute/contracts";
 import { decideApproval, getActionView, listPendingApprovals, type Database } from "@agentroute/db";
+import type { Metrics } from "@agentroute/telemetry";
 import { z } from "zod";
 import { requireOperator, requireTenant } from "../auth.js";
 import { ApiError, parseOrThrow } from "../problem.js";
@@ -23,6 +24,8 @@ export interface V1Services {
   execution: ExecutionService;
   /** Optional; when present, proposals are rate limited per key and per tenant. */
   rateLimiter?: RateLimiting | undefined;
+  /** Optional metrics registry; records rate-limit rejections here. */
+  metrics?: Metrics | undefined;
 }
 
 const ActionIdParams = z.object({ id: z.uuid() });
@@ -42,6 +45,7 @@ export function registerV1Routes(app: App, services: V1Services): void {
     if (services.rateLimiter) {
       const limit = await services.rateLimiter.check(tenant.tenantId, tenant.keyId);
       if (!limit.allowed) {
+        services.metrics?.rateLimited.inc({ scope: "proposal" });
         reply.header("retry-after", String(limit.retryAfterSeconds));
         throw new ApiError(429, "RATE_LIMITED", "rate limit exceeded; retry after the indicated delay");
       }

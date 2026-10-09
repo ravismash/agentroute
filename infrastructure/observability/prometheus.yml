@@ -1,0 +1,20 @@
+# Minimal Prometheus config to scrape the AgentRoute gateway and evaluate the
+# alert rules in alerts.yml. The gateway exposes Prometheus text at /metrics.
+#
+#   docker run -p 9090:9090 \
+#     -v "$PWD/infrastructure/observability/prometheus.yml:/etc/prometheus/prometheus.yml" \
+#     -v "$PWD/infrastructure/observability/alerts.yml:/etc/prometheus/alerts.yml" \
+#     prom/prometheus
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: agentroute-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8080"] # the gateway; adjust for your deploy

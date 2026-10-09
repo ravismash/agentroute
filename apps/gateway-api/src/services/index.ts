@@ -1,6 +1,6 @@
 import { Database } from "@agentroute/db";
 import { RateLimiter } from "@agentroute/limits";
-import type { Logger } from "@agentroute/telemetry";
+import type { Logger, Metrics } from "@agentroute/telemetry";
 import {
   buildExecutors,
   ExecutionService,
@@ -30,6 +30,8 @@ export interface ServiceOptions {
   payments?: PaymentGateway;
   /** Inject a rate limiter (tests); overrides redisUrl. */
   rateLimiter?: V1Services["rateLimiter"];
+  /** Metrics registry shared with the HTTP layer; instruments the decision path. */
+  metrics?: Metrics;
 }
 
 export interface Services extends V1Services {
@@ -71,6 +73,13 @@ export async function createServices(options: ServiceOptions, log: Logger): Prom
 
   const policies = await PolicyCatalog.load(db, options.policiesDir, log);
   const execution = new ExecutionService(db, buildExecutors(db, payments), log);
-  const proposals = new ProposalService(db, policies, execution, log, options.approvalTtlSeconds);
-  return { db, payments, policies, execution, proposals, rateLimiter, redis };
+  const proposals = new ProposalService(
+    db,
+    policies,
+    execution,
+    log,
+    options.approvalTtlSeconds,
+    options.metrics,
+  );
+  return { db, payments, policies, execution, proposals, rateLimiter, redis, metrics: options.metrics };
 }

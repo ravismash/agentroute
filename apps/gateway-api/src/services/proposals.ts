@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import {
   parseToolArgs,
   type ActionState,
@@ -27,7 +28,7 @@ import {
   type Decision,
   type EvaluationContext,
 } from "@agentroute/policy-engine";
-import type { Logger } from "@agentroute/telemetry";
+import { withSpan, type Logger, type Metrics } from "@agentroute/telemetry";
 import { ApiError } from "../problem.js";
 import type { ExecutionService } from "@agentroute/execution";
 import type { PolicyCatalog } from "./policy-catalog.js";
@@ -51,6 +52,7 @@ export class ProposalService {
     private readonly execution: ExecutionService,
     private readonly log: Logger,
     private readonly approvalTtlSeconds: number,
+    private readonly metrics?: Metrics,
   ) {}
 
   async submit(
@@ -62,67 +64,83 @@ export class ProposalService {
     const requestHash = sha256(canonicalJson(request));
 
     let created: { id: string; state: ActionState; decision: Decision | NoPolicyDecision };
+    const startedAt = performance.now();
     try {
-      const outcome = await this.db.transaction(async (tx) => {
-        const existing = await findByIdempotencyKey(tx, tenantId, idempotencyKey);
-        if (existing) return { kind: "replay" as const, existing };
+      const outcome = await withSpan(
+        "proposal.decide",
+        () =>
+          this.db.transaction(async (tx) => {
+            const existing = await findByIdempotencyKey(tx, tenantId, idempotencyKey);
+            if (existing) return { kind: "replay" as const, existing };
 
-        const context = await loadCaseContext(tx, tenantId, request.case_id);
-        if (!context) throw new ApiError(404, "NOT_FOUND", "case not found");
+            const context = await loadCaseContext(tx, tenantId, request.case_id);
+            if (!context) throw new ApiError(404, "NOT_FOUND", "case not found");
 
-        const policy = this.policies.registry.resolve(tenantId, request.agent_id);
-        const evalContext = toEvaluationContext(tenantId, request.agent_id, context);
-        if (request.tool === "draft_reply") {
-          // Replies are checked against what actually happened on the case.
-          evalContext.evidence = {
-            actions: await loadCaseEvidence(tx, tenantId, context.case.customer_id, request.case_id),
-            current_plan: context.subscription?.plan ?? null,
-          };
-        }
-        const proposal = { tool: request.tool, args: request.args };
+            const policy = this.policies.registry.resolve(tenantId, request.agent_id);
+            const evalContext = toEvaluationContext(tenantId, request.agent_id, context);
+            if (request.tool === "draft_reply") {
+              // Replies are checked against what actually happened on the case.
+              evalContext.evidence = {
+                actions: await loadCaseEvidence(tx, tenantId, context.case.customer_id, request.case_id),
+                current_plan: context.subscription?.plan ?? null,
+              };
+            }
+            const proposal = { tool: request.tool, args: request.args };
 
-        let decision: Decision | NoPolicyDecision;
-        if (context.tenant.kill_switch) {
-          decision = denyWithoutEvaluation("KILL_SWITCH_ACTIVE", "tenant kill switch is active", policy);
-        } else if (!policy) {
-          decision = denyWithoutEvaluation("POLICY_DEFAULT_DENY", "no policy governs this tenant and agent");
-        } else {
-          // Serialise concurrent proposals that share usage counters, then read them.
-          const queries = planUsage(policy, proposal, evalContext);
-          await lockUsageScope(tx, tenantId, context.case.customer_id, queries);
-          const usage = await readUsage(tx, tenantId, context.case.customer_id, queries);
-          decision = evaluate(policy, proposal, evalContext, usage);
-          if (decision.error) this.log.error({ error: decision.error }, "policy evaluation failed closed");
-        }
+            let decision: Decision | NoPolicyDecision;
+            if (context.tenant.kill_switch) {
+              decision = denyWithoutEvaluation("KILL_SWITCH_ACTIVE", "tenant kill switch is active", policy);
+            } else if (!policy) {
+              decision = denyWithoutEvaluation(
+                "POLICY_DEFAULT_DENY",
+                "no policy governs this tenant and agent",
+              );
+            } else {
+              // Serialise concurrent proposals that share usage counters, then read them.
+              const queries = planUsage(policy, proposal, evalContext);
+              await lockUsageScope(tx, tenantId, context.case.customer_id, queries);
+              const usage = await readUsage(tx, tenantId, context.case.customer_id, queries);
+              decision = evaluate(policy, proposal, evalContext, usage);
+              if (decision.error)
+                this.log.error({ error: decision.error }, "policy evaluation failed closed");
+            }
 
-        const id = uuidv7();
-        const state = STATE_FOR_EFFECT[decision.effect];
-        await insertProposal(tx, {
-          id,
-          tenantId,
-          caseId: request.case_id,
-          customerId: context.case.customer_id,
-          agentId: request.agent_id,
-          tool: request.tool,
-          args: request.args,
-          ...moneyOf(request),
-          state,
-          idempotencyKey,
-          requestHash,
-          decision: {
-            effect: decision.effect,
-            reasons: decision.reasons,
-            matchedRules: decision.matched_rules,
-            policy: decision.policy ? this.policies.recordFor(decision.policy.checksum) : null,
-          },
-          approvalTtlSeconds: this.approvalTtlSeconds,
-          traceId,
-        });
-        return { kind: "created" as const, created: { id, state, decision } };
-      });
+            const id = uuidv7();
+            const state = STATE_FOR_EFFECT[decision.effect];
+            await insertProposal(tx, {
+              id,
+              tenantId,
+              caseId: request.case_id,
+              customerId: context.case.customer_id,
+              agentId: request.agent_id,
+              tool: request.tool,
+              args: request.args,
+              ...moneyOf(request),
+              state,
+              idempotencyKey,
+              requestHash,
+              decision: {
+                effect: decision.effect,
+                reasons: decision.reasons,
+                matchedRules: decision.matched_rules,
+                policy: decision.policy ? this.policies.recordFor(decision.policy.checksum) : null,
+              },
+              approvalTtlSeconds: this.approvalTtlSeconds,
+              traceId,
+            });
+            return { kind: "created" as const, created: { id, state, decision } };
+          }),
+        { tool: request.tool },
+      );
 
       if (outcome.kind === "replay") return replay(outcome.existing, requestHash);
       created = outcome.created;
+      // Decision overhead = policy evaluation + persistence, excluding execution.
+      this.metrics?.decisions.inc({ effect: created.decision.effect, tool: request.tool });
+      this.metrics?.decisionDuration.observe(
+        { effect: created.decision.effect },
+        (performance.now() - startedAt) / 1000,
+      );
     } catch (err) {
       // Two identical requests raced: the loser replays the winner's result.
       if (isUniqueViolation(err, "uq_actions_idempotency")) {
@@ -142,8 +160,13 @@ export class ProposalService {
         : null,
     };
     if (created.state === "allowed") {
-      const report = await this.execution.execute(tenantId, created.id, traceId);
+      const report = await withSpan(
+        "proposal.execute",
+        () => this.execution.execute(tenantId, created.id, traceId),
+        { action_id: created.id },
+      );
       response.state = report.state;
+      this.metrics?.executions.inc({ outcome: report.state });
       if (report.result !== undefined) response.result = report.result;
     }
     return { created: true, response };
