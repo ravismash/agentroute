@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Logger } from "@agentroute/telemetry";
+import type { Logger, Metrics } from "@agentroute/telemetry";
 import Fastify from "fastify";
 import { ApiError, sendProblem } from "./problem.js";
 import { registerUiRoutes } from "./routes/ui.js";
@@ -11,11 +11,13 @@ export interface AppDeps {
   readinessChecks?: Record<string, () => Promise<void>>;
   /** API services; omitted in tests that only exercise the HTTP shell. */
   services?: V1Services;
+  /** When present, exposes GET /metrics and records HTTP request durations. */
+  metrics?: Metrics;
 }
 
 const BODY_LIMIT_BYTES = 64 * 1024;
 
-export function buildApp({ logger, readinessChecks = {}, services }: AppDeps) {
+export function buildApp({ logger, readinessChecks = {}, services, metrics }: AppDeps) {
   const app = Fastify({
     loggerInstance: logger,
     bodyLimit: BODY_LIMIT_BYTES,
@@ -29,6 +31,21 @@ export function buildApp({ logger, readinessChecks = {}, services }: AppDeps) {
     reply.header("referrer-policy", "no-referrer");
     if (request.url.startsWith("/v1/")) reply.header("cache-control", "no-store");
   });
+
+  if (metrics) {
+    // Record HTTP latency by method, routerPath (low cardinality) and status class.
+    app.addHook("onResponse", async (request, reply) => {
+      if (request.url === "/metrics") return;
+      const route = request.routeOptions.url ?? "unmatched";
+      const status = `${Math.floor(reply.statusCode / 100)}xx`;
+      metrics.httpDuration.observe({ method: request.method, route, status }, reply.elapsedTime / 1000);
+    });
+
+    app.get("/metrics", async (_request, reply) => {
+      reply.header("content-type", metrics.contentType);
+      return metrics.render();
+    });
+  }
 
   app.setNotFoundHandler((request, reply) => sendProblem(request, reply, 404, "NOT_FOUND"));
 

@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import type { ProposalResponse } from "@agentroute/contracts";
 import { issueApiKey, issueOperatorToken, migrate } from "@agentroute/db";
-import { createLogger } from "@agentroute/telemetry";
+import { createLogger, Metrics } from "@agentroute/telemetry";
 import pg from "pg";
 import { inject } from "vitest";
 import { buildApp, type GatewayApp } from "../app.js";
@@ -15,6 +15,7 @@ const POLICIES_DIR = fileURLToPath(new URL("../../../../policies", import.meta.u
 export interface Harness {
   app: GatewayApp;
   services: Services;
+  metrics: Metrics;
   payments: FakePaymentGateway;
   sql: pg.Client;
   keys: { acme: string; globex: string; acmeOperator: string; globexOperator: string; admin: string };
@@ -95,6 +96,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 
   const logger = createLogger({ service: "test", level: "silent" });
   const payments = new FakePaymentGateway();
+  const metrics = new Metrics({ defaultMetrics: false });
   const services = await createServices(
     {
       databaseUrl: url.toString(),
@@ -102,15 +104,17 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       approvalTtlSeconds: 3600,
       payments,
       rateLimiter: options.rateLimiter,
+      metrics,
     },
     logger,
   );
-  const app = buildApp({ logger, services });
+  const app = buildApp({ logger, services, metrics });
 
   let counter = 0;
   return {
     app,
     services,
+    metrics,
     payments,
     sql,
     keys,

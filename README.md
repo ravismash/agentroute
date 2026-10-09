@@ -22,7 +22,7 @@ Every decision is logged with the policy version and rules that produced it, and
 
 **SupportOps Agent** is the reference customer-support agent that runs through AgentRoute.
 
-> Status: **deployed and live.** Phases 0–5 plus 3.5 (grounding, retrieval, judged evals) and 7 (containerised deploy) are complete: deterministic policy engine, effectively-once execution, transactional outbox → Redis Streams with DLQ and replay, per-key/per-tenant rate limiting, per-tenant LLM budgets, circuit breakers, a reference agent, and a public Render deployment. Full observability and load testing (Phase 6) are next. See the [roadmap](#roadmap).
+> Status: **deployed and live.** Phases 0–7 (except 6's edges) plus 3.5 (grounding, retrieval, judged evals) are complete: deterministic policy engine, effectively-once execution, transactional outbox → Redis Streams with DLQ and replay, per-key/per-tenant rate limiting, per-tenant LLM budgets, circuit breakers, Prometheus metrics + OpenTelemetry tracing + Grafana/alerts, a reference agent, and a public Render deployment. Design-partner beta (Phase 8) is next. See the [roadmap](#roadmap).
 
 ## Architecture
 
@@ -70,7 +70,7 @@ packages/limits/        Token-bucket rate limiting (fail-open), LLM budget ledge
 packages/contracts/     Zod schemas: tools, proposals, action state machine, events, error codes
 packages/telemetry/     pino logger with PII redaction, OpenTelemetry bootstrap
 policies/               Versioned policy files (support-agent-baseline.v1.yaml)
-infrastructure/         docker-compose (Postgres 16, Redis 7 with AOF)
+infrastructure/         docker-compose (Postgres 16, Redis 7 with AOF), k6 load script, Prometheus/Grafana/alerts as code
 docs/                   design doc, ADRs
 .github/workflows/      CI: format, lint, typecheck, build, test, audit
 ```
@@ -178,17 +178,27 @@ pnpm --filter @agentroute/worker replay outbox --since <ISO> # rebuild the strea
 
 Verified live: `kill -9` on the worker under traffic, while the API kept serving, 12 events buffered, then all 62 events delivered exactly once after restart. See [ADR-0007](docs/adr/0007-event-pipeline.md).
 
+## Observability
+
+The gateway exposes Prometheus metrics at **`/metrics`**: decisions by effect and tool, **decision overhead** (policy + persistence, excluding the LLM) with buckets around the p95 < 25 ms SLO, execution outcomes, rate-limit rejections and HTTP latency by route. The decision path emits OpenTelemetry spans (`proposal.decide`, `proposal.execute`) when `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+
+Dashboards and alerts are committed as code under [`infrastructure/observability/`](infrastructure/observability/) (Grafana dashboard, Prometheus scrape config, alert rules), and [`infrastructure/k6/proposals.js`](infrastructure/k6/proposals.js) is a k6 ramp whose thresholds assert the decision SLO. See [ADR-0009](docs/adr/0009-observability.md).
+
+```bash
+curl -s localhost:8080/metrics | grep agentroute_decisions_total
+```
+
 ## AI engineering: how the hard problems are handled
 
-| Problem                              | How AgentRoute handles it                                                                                                                                                                    | Evidence                                                                             |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **Hallucinations**                   | Tools return structured outcomes; a deterministic `grounded_reply` policy checks money and plan claims in every reply against what actually happened, and sends unbacked replies to a human  | 24 grounding tests; a live "$500 refunded" lie is held for review                    |
-| **Retrieving the right information** | Help-center RAG: section chunks, BM25 + synonyms, embeddings, hybrid via RRF; replies may only cite retrieved articles                                                                       | recall@5 0.97 dev / **0.75 held-out** (BM25), with hybrid measured when a key is set |
-| **Evaluating responses**             | 24 scenarios against the real policy (CI, offline); LLM-as-judge calibrated against hand labels (Cohen's κ); citation checks                                                                 | `pnpm evals`, `pnpm evals:judge-calibrate`                                           |
-| **Wrong answers**                    | Wrong _actions_ are contained by policy, approvals and the kill switch; wrong _claims_ by grounding; every failure becomes a new eval                                                        | "policy saves" counted in every eval run                                             |
-| **Cost**                             | Per-tenant daily LLM budget reserved before each model call (Redis Lua, atomic, fail-closed); turn limits; token accounting; model comparison with live prices (model routing still to come) | `pnpm evals -- --models a,b,c`                                                       |
-| **Data security**                    | PII redaction, tenant isolation in the schema, hashed credentials, SDK trace export off, untrusted input delimited                                                                           | schema catalog tests, redaction tests                                                |
-| **Scale and monitoring**             | Stateless gateway, effectively-once execution, outbox, per-key/per-tenant rate limiting and a circuit breaker on provider calls; OpenTelemetry tracing and alerting in Phase 6               | design doc §11–14                                                                    |
+| Problem                              | How AgentRoute handles it                                                                                                                                                                                                                               | Evidence                                                                             |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **Hallucinations**                   | Tools return structured outcomes; a deterministic `grounded_reply` policy checks money and plan claims in every reply against what actually happened, and sends unbacked replies to a human                                                             | 24 grounding tests; a live "$500 refunded" lie is held for review                    |
+| **Retrieving the right information** | Help-center RAG: section chunks, BM25 + synonyms, embeddings, hybrid via RRF; replies may only cite retrieved articles                                                                                                                                  | recall@5 0.97 dev / **0.75 held-out** (BM25), with hybrid measured when a key is set |
+| **Evaluating responses**             | 24 scenarios against the real policy (CI, offline); LLM-as-judge calibrated against hand labels (Cohen's κ); citation checks                                                                                                                            | `pnpm evals`, `pnpm evals:judge-calibrate`                                           |
+| **Wrong answers**                    | Wrong _actions_ are contained by policy, approvals and the kill switch; wrong _claims_ by grounding; every failure becomes a new eval                                                                                                                   | "policy saves" counted in every eval run                                             |
+| **Cost**                             | Per-tenant daily LLM budget reserved before each model call (Redis Lua, atomic, fail-closed); turn limits; token accounting; model comparison with live prices (model routing still to come)                                                            | `pnpm evals -- --models a,b,c`                                                       |
+| **Data security**                    | PII redaction, tenant isolation in the schema, hashed credentials, SDK trace export off, untrusted input delimited                                                                                                                                      | schema catalog tests, redaction tests                                                |
+| **Scale and monitoring**             | Stateless gateway, effectively-once execution, outbox, per-key/per-tenant rate limiting, a circuit breaker on provider calls, Prometheus metrics at `/metrics`, OpenTelemetry spans on the decision path, and committed Grafana dashboard + alert rules | `/metrics`; design doc §11–14                                                        |
 
 See [ADR-0006](docs/adr/0006-grounding-retrieval-and-judged-evals.md).
 
@@ -234,6 +244,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 - [ADR-0006: Reply grounding, help-center retrieval and judged evals](docs/adr/0006-grounding-retrieval-and-judged-evals.md)
 - [ADR-0007: Event pipeline: transactional outbox → Redis Streams → idempotent consumers](docs/adr/0007-event-pipeline.md)
 - [ADR-0008: Rate limits (fail-open), LLM budgets (fail-closed), and circuit breakers](docs/adr/0008-rate-limits-budgets-circuit-breakers.md)
+- [ADR-0009: Observability — metrics, tracing, dashboards and alerts](docs/adr/0009-observability.md)
 
 ## More docs
 
@@ -253,7 +264,7 @@ Policies are YAML files that support-ops staff can read and change. See the [pol
 | 3.5   | —     | ✅ Grounding, help-center RAG, retrieval evals, LLM-as-judge, model comparison                                      |
 | 4     | 14–16 | ✅ Outbox relay, Redis Streams consumers, DLQ, replay                                                               |
 | 5     | 17–18 | ✅ Rate limits (token bucket, fail-open), LLM budgets (fail-closed), circuit breakers, kill switch                  |
-| 6     | 19–20 | Fault injection, load tests, dashboards, threat model                                                               |
+| 6     | 19–20 | ✅ Prometheus metrics + `/metrics`, OpenTelemetry spans, Grafana dashboard + alert rules, k6 load script            |
 | 7     | 21–22 | ✅ Containerised deploy ([Render blueprint](render.yaml)), [live demo](https://agentroute-gateway.onrender.com/ui/) |
 | 8     | 23–24 | Buffer and design-partner beta                                                                                      |
 | 9     | 25    | Proof package: docs, video, article, `v0.1.0-beta`                                                                  |

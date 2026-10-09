@@ -3,7 +3,14 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig(
-  globalIgnores(["**/dist/**", "**/coverage/**", "**/node_modules/**", "**/.turbo/**"]),
+  globalIgnores([
+    "**/dist/**",
+    "**/coverage/**",
+    "**/node_modules/**",
+    "**/.turbo/**",
+    // Standalone k6 script: runs in the k6 runtime, not part of any tsconfig.
+    "infrastructure/k6/**",
+  ]),
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   {
